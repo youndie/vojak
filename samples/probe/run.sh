@@ -13,6 +13,8 @@ NET=vojak-probe
 PG=vojak-probe-pg
 PX=vojak-probe-proxy
 PG_IMAGE=${PG_IMAGE:-postgres:18}
+# The driver under test; see build.gradle.kts.
+SQLX4K=${SQLX4K:-1.13.1}
 
 cleanup() {
   docker unpause "$PX" >/dev/null 2>&1
@@ -35,7 +37,8 @@ done
 docker exec "$PG" psql -U postgres -tAc 'select version()'
 
 export GRADLE_OPTS=-Dorg.gradle.daemon=false
-./gradlew -q linkReleaseExecutableLinuxX64 jvmMainClasses || { echo "build failed"; exit 1; }
+./gradlew -q -Psqlx4k="$SQLX4K" linkReleaseExecutableLinuxX64 jvmMainClasses || { echo "build failed"; exit 1; }
+echo "driver: io.github.smyrgeorge:sqlx4k-postgres:$SQLX4K"
 
 mkdir -p build/results
 rm -f build/results/*.log
@@ -53,5 +56,5 @@ run() {
   done
 }
 run linuxX64 build/bin/linuxX64/releaseExecutable/probe.kexe
-./gradlew -q jvmJar >/dev/null
-run jvm ./gradlew -q jvmRun
+./gradlew -q -Psqlx4k="$SQLX4K" jvmJar >/dev/null
+run jvm ./gradlew -q -Psqlx4k="$SQLX4K" jvmRun

@@ -1,7 +1,7 @@
 ---
 id: B-13
 title: "A patched sqlx4k-postgres that reports I/O errors instead of aborting, published from a fork"
-status: open
+status: question
 priority: P1
 size: L
 stage: stage-2-election
@@ -67,7 +67,7 @@ consumer and the owner says so. The item is no longer a question.
 - **The patch**: `sqlx4k_postgres_error_result_of` maps `Io`, `Tls`, `Protocol` and the other
   panicking variants to an error code with the error's text, the way `Database` already is — no
   `panic!` left on a path a running connection can reach.
-- **Coordinates unchanged, version suffixed**: `io.github.smyrgeorge:sqlx4k-postgres:1.13.1-yio.<n>`
+- **Coordinates unchanged, version suffixed**: `io.github.smyrgeorge:sqlx4k-postgres:1.13.1.<n>-yio`
   (and its per-target artefacts). A different group would put two copies of the same classes on a
   consumer's classpath next to the plain `io.github.smyrgeorge:sqlx4k` vojak depends on; a suffix
   keeps one set and makes the patched build impossible to mistake for the release.
@@ -85,3 +85,42 @@ consumer and the owner says so. The item is no longer a question.
 - Anchors: `samples/probe/build.gradle.kts`, `samples/probe/run.sh`,
   `vojak-postgres/src/commonMain/kotlin/io/github/youndie/vojak/postgres/Sql.kt`,
   `gradle/libs.versions.toml`.
+
+## Iteration 1 — 2026-09-30
+
+**Done.** Fork `youndie/sqlx4k` created; upstream's push URL is `DISABLED`. Branch
+`fix/postgres-io-errors-are-results` (commit `00bb4103`, pushed to the fork only): the error mapping
+reports instead of panicking; the root version is `1.13.1.1-yio`; `sqlx4k-postgres` depends on the
+released core `sqlx4k:1.13.1` instead of the tree's; signing only when a key is configured.
+Built and published to the Linux box's `~/.m2` for `jvm` and `linuxX64`.
+
+- AC 1 **met locally**: the probe with `SQLX4K=1.13.1.1-yio` runs every check on linuxX64 with no
+  exit 134; the control on 1.13.1 still aborts at `src/lib.rs:372` (research §1.5).
+- AC 2 **met**: vojak-postgres's 12 tests pass on both targets with the patched driver; the `Sql.kt`
+  rule is kept, with the reason recorded at research Consequence 12.
+- AC 3 **partly**: research records the fork, the commit and the version; **where it is published is
+  missing, because it is not published.**
+- The version differs from the decision above on purpose: `1.13.1.<n>-yio`, not `1.13.1-yio.<n>`.
+  By Gradle's version ordering a trailing non-numeric part sorts *below* the release, so
+  `1.13.1-yio.1` would lose a conflict to `1.13.1` and the patch would vanish silently; a fourth
+  numeric part sorts above it. *Hypothesis*: not yet exercised by a real conflict.
+
+## Question — publication (2026-09-30)
+
+Publishing to `reposilite.kotlin.website/snapshots` needs a token for the fork, and tokens are issued
+by the infra repository's `reposilite-token` workflow — a standing credential, so it waits for the
+owner. What it would take, once agreed:
+
+1. dispatch `reposilite-token` with `repository=youndie/sqlx4k` and
+   `paths=/snapshots/io/github/smyrgeorge/` — one path, because the artefacts are one per target
+   (`sqlx4k-postgres`, `-jvm`, `-linuxx64`, `-linuxarm64`) and a route is a string prefix; narrower
+   (`…/smyrgeorge/sqlx4k-postgres` without the slash) is not expressible, since paths must end in `/`;
+2. a `publish-reposilite.yml` in the fork on the MaterialKolor pattern — triggered by a
+   `*-yio` tag, tests first, refuses a taken version, reads every coordinate back — building
+   `jvm`, `linuxX64` and `linuxArm64` (which needs `rustup target add aarch64-unknown-linux-gnu`
+   on the runner; the crate has no TLS and so no C dependency to cross-compile);
+3. tag `1.13.1.1-yio` in the fork.
+
+The route in 1 also grants writing under upstream's group directory in our own repository — that
+directory holds nothing else there, but the owner should see it named. Until then, B-06 and B-09
+stay blocked on this item.
