@@ -1,0 +1,114 @@
+package io.github.youndie.vojak
+
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
+import kotlin.coroutines.AbstractCoroutineContextElement
+import kotlin.coroutines.CoroutineContext
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.seconds
+import kotlin.time.TimeSource
+
+/**
+ * Named critical sections for one service: every name is taken under [namespace], so two services
+ * sharing a database cannot take each other's locks by choosing the same word.
+ *
+ * @param timeSource what `waitAtMost` is measured on; a parameter so the waiting is testable on a
+ *   virtual clock.
+ */
+public class Vojak(
+    private val store: LockStore,
+    public val namespace: Namespace,
+    private val backoff: Backoff = Backoff(),
+    private val timeSource: TimeSource = TimeSource.Monotonic,
+) {
+    /**
+     * Waits for [name] — at most [waitAtMost] — and runs [block] while holding it.
+     *
+     * Waiting is retrying a non-blocking attempt with [backoff], never a statement blocked inside
+     * the database: such a statement is not interrupted by cancellation (research §1.5), so it would
+     * make [waitAtMost] a wish.
+     *
+     * @throws LockTimeoutException when [name] was not taken within [waitAtMost]; [block] did not run.
+     * @throws ReentrantLockException when called from inside a block already holding [name].
+     * @throws LockLostException see [LockStore.tryHolding].
+     */
+    public suspend fun <T> withLock(
+        name: LockName,
+        waitAtMost: Duration = DEFAULT_WAIT,
+        block: suspend () -> T,
+    ): T {
+        val key = keyOf(name)
+        val deadline = timeSource.markNow() + waitAtMost
+        var pause = backoff.initial
+        while (true) {
+            when (val attempt = store.tryHolding(key) { holding(key, block) }) {
+                is Attempt.Held -> return attempt.value
+                Attempt.Busy -> Unit
+            }
+            val left = -deadline.elapsedNow()
+            if (!left.isPositive()) throw LockTimeoutException(name, waitAtMost)
+            delay(minOf(pause, left))
+            pause = minOf(pause * 2, backoff.max)
+        }
+    }
+
+    /**
+     * Runs [block] while holding [name] if it is free right now; otherwise returns `null` after one
+     * round trip, without running [block].
+     *
+     * @throws ReentrantLockException when called from inside a block already holding [name].
+     * @throws LockLostException see [LockStore.tryHolding].
+     */
+    public suspend fun <T : Any> tryWithLock(
+        name: LockName,
+        block: suspend () -> T,
+    ): T? {
+        val key = keyOf(name)
+        return when (val attempt = store.tryHolding(key) { holding(key, block) }) {
+            is Attempt.Held -> attempt.value
+            Attempt.Busy -> null
+        }
+    }
+
+    private suspend fun keyOf(name: LockName): Long {
+        val key = name.advisoryKey(namespace)
+        if (currentCoroutineContext()[HeldKeys]?.keys?.contains(key) == true) throw ReentrantLockException(name)
+        return key
+    }
+
+    private suspend fun <T> holding(
+        key: Long,
+        block: suspend () -> T,
+    ): T {
+        val held = currentCoroutineContext()[HeldKeys]?.keys.orEmpty()
+        return withContext(HeldKeys(held + key)) { block() }
+    }
+
+    public companion object {
+        /** What `withLock` waits when the caller does not say; bounded, like every wait here. */
+        public val DEFAULT_WAIT: Duration = 30.seconds
+    }
+}
+
+/** How `withLock` spaces its attempts: [initial], doubling, never more than [max]. */
+public data class Backoff(
+    val initial: Duration = 50.milliseconds,
+    val max: Duration = 1.seconds,
+) {
+    init {
+        require(initial.isPositive() && max >= initial) { "backoff needs 0 < initial <= max, got $initial..$max" }
+    }
+}
+
+/**
+ * The keys held by the current coroutine and its children — what makes re-entry detectable. A
+ * context element rather than a process-wide set: two sibling coroutines asking for one name are
+ * two callers and must queue through the database, not fail.
+ */
+private class HeldKeys(
+    val keys: Set<Long>,
+) : AbstractCoroutineContextElement(HeldKeys) {
+    companion object Key : CoroutineContext.Key<HeldKeys>
+}
