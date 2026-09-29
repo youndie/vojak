@@ -33,9 +33,15 @@ native binaries run there, through the wrapper; edits, `git` and the documentati
 the Mac:
 
 ```bash
+~/.claude/bin/wsl-run make build                             # the code gate: test Postgres, then gradle build
 cd samples/probe && ~/.claude/bin/wsl-run ./run.sh          # the B-01 probe, both targets
 CHECKS=N1 ~/.claude/bin/wsl-run ./run.sh                    # one check
 ```
+
+`make build` starts `vojak-test-pg` (Postgres 18 on `127.0.0.1:55440`) and reuses it afterwards;
+`docker stop vojak-test-pg` is how to see the suite fail without it. What a green `build` covers:
+`jvmTest` and `linuxX64Test` run; `linuxArm64` is compiled only — Kotlin/Native has no arm64 test task
+on an x86-64 host.
 
 Results land under `samples/probe/build/results/` on the Linux side — under `build/`, because the
 replica deletes anything else it did not send.
@@ -49,7 +55,9 @@ replica deletes anything else it did not send.
 - **After a failure, a transaction gets exactly one more call, and it is `rollback()`.** A second
   call on a dead connection aborts a native process; no call at all leaks the connection
   (research Consequence 12).
-- **A test that needs Postgres fails when Postgres is absent.** It never skips.
+- **A test that needs Postgres fails when Postgres is absent.** It never skips, and its task is never
+  up to date or taken from the build cache — the database is an input Gradle cannot see, and a cached
+  green over a stopped database is exactly what B-02 found (`vojak-postgres/build.gradle.kts`).
 - **An oracle is accepted only after it has been shown to fail** — the fault suite is run once with
   the lease margin removed and must report an overlap (B-09).
 

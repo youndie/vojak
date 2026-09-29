@@ -71,6 +71,31 @@ jobs:
       - if: github.ref == 'refs/heads/main' && github.event_name == 'push'
         run: python3 scripts/docs_check.py --on-main
 
+  # The code gate — the same `make build` a contributor runs: Postgres in Docker, then `gradle build`
+  # (jvmTest and linuxX64Test; linuxArm64 compiled only). The test database is started by the
+  # Makefile rather than a `services:` block so that CI and a workstation start it the same way.
+  build:
+    if: github.event_name == 'push' || github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      # The Kotlin/Native toolchain and its dependencies are ~1 GB; without this every run downloads
+      # them again.
+      - uses: actions/cache@v4
+        with:
+          path: ~/.konan
+          key: konan-${{ runner.os }}-${{ hashFiles('gradle/libs.versions.toml', 'settings.gradle.kts') }}
+
+      - run: make build GRADLEFLAGS=--no-daemon
+
   # Separate from the gate, and on a schedule rather than on a pull request, because an anchor rots
   # when somebody refactors a **different** repository. A pull request here is the least likely
   # moment for one to break, and running it there trains people to ignore a red build they did not

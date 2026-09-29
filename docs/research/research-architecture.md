@@ -130,8 +130,13 @@ different trigger — any I/O error ends the process.
 | Two sqlx4k drivers in one Kotlin/Native binary do not link (both carry a Rust runtime and define the same symbols); a library that depends only on the plain `sqlx4k` artefact and takes a `Driver` from the caller avoids it | `youndie/chronik!/chronik-sqlx4k-sqlite/build.gradle.kts` — the same shape, shipped in chronik 0.2.0 on Maven Central with a `linuxX64` variant |
 | A transaction-level advisory lock held through `Driver.begin()` on sqlx4k is already in production use, for serialising migrations | `youndie/shildik!/storage-sqlx4k/src/commonMain/kotlin/io/github/youndie/shildik/storage/sqlx4k/PostgresMigrations.kt` |
 | kore's shutdown plan has a `consumer(participant)` group that releases **before** `pool(participant)`; a `ShutdownParticipant` is a `name` and a cancellable `suspend fun stop()` | `youndie/kore!/kore-core/src/commonMain/kotlin/io/github/youndie/kore/lifecycle/ShutdownPlan.kt`, `…/ShutdownParticipant.kt` |
-| kore is **not** on Maven Central: its metadata answers 404 on 2026-09-29 | [repo1.maven.org/…/kore-core/maven-metadata.xml](https://repo1.maven.org/maven2/io/github/youndie/kore/kore-core/maven-metadata.xml) |
+| kore is **not** on Maven Central: its metadata answers 404 on 2026-09-29. It is published to the portfolio's reposilite as `io.github.youndie:kore-core` 0.1.12, with `jvm`, `linuxX64`, `linuxArm64` and `macosArm64` variants | [repo1.maven.org/…/io/github/youndie/kore-core/maven-metadata.xml](https://repo1.maven.org/maven2/io/github/youndie/kore-core/maven-metadata.xml); the `.module` file of 0.1.12 in reposilite |
 | booblik lists "no leader election" among its non-goals | `youndie/booblik!/README.md` |
+
+*Correction found in B-02:* the first version of the row above checked
+`io/github/youndie/kore/kore-core` — a coordinate kore never had — so its 404 proved nothing. The
+right one, `io.github.youndie:kore-core`, answers 404 too; the conclusion stands on the right
+evidence now.
 
 **Consequence 9.** `vojak-kore` is a consumer participant — release the lock after in-flight
 work is cancelled and before the pool it needs is closed — and it is the whole of the kore

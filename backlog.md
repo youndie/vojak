@@ -38,11 +38,10 @@ layer, so re-prioritising an item must never move its file.
 
 <!-- BEGIN INDEX -->
 
-## Open (12)
+## Open (11)
 
 | Task | | Priority | Size | Blocked by |
 |---|---|---|---|---|
-| [B-02](docs/backlog/B-02-scaffold-and-gate.md) `[~]` | Scaffold the three modules and put the code in the same gate as the documents | P1 | S | B-01 |
 | [B-03](docs/backlog/B-03-lock-name-to-key.md) `[ ]` | A lock name maps to the same 64-bit key on every target | P1 | S | B-02 |
 | [B-04](docs/backlog/B-04-with-lock.md) `[ ]` | A named critical section: withLock, tryWithLock, and no unbounded wait | P1 | M | B-03 |
 | [B-06](docs/backlog/B-06-election.md) `[ ]` | Election: hold the lock, keep the lease, publish Leadership as a StateFlow | P1 | L | B-01, B-04, B-13 |
@@ -55,11 +54,15 @@ layer, so re-prioritising an item must never move its file.
 | [B-11](docs/backlog/B-11-reference-sample.md) `[ ]` | Reference consumer: two replicas, one singleton, a store that rejects a stale epoch | P2 | M | B-09, B-10 |
 | [B-12](docs/backlog/B-12-release-0-1-0.md) `[ ]` | Release 0.1.0: vojak-core and vojak-postgres on Maven Central, checked by an outside consumer | P2 | S | B-11 |
 
-## Closed (1)
+## Closed (2)
 
 **Evidence**
 
 - [B-01](docs/backlog/B-01-probe-the-holding-transaction.md) `[x]` - Measure what a held leadership costs and how it dies, before any code depends on it
+
+**Lock**
+
+- [B-02](docs/backlog/B-02-scaffold-and-gate.md) `[x]` - Scaffold the three modules and put the code in the same gate as the documents
 
 <!-- END INDEX -->
 

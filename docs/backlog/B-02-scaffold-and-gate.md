@@ -1,7 +1,7 @@
 ---
 id: B-02
 title: "Scaffold the three modules and put the code in the same gate as the documents"
-status: wip
+status: done
 priority: P1
 size: S
 stage: stage-1-lock
@@ -26,3 +26,21 @@ from sborka rather than copied build logic.
 - AC: `.github/workflows/check.yaml` runs `make check` and `make build`.
 - Anchors: `settings.gradle.kts`, `vojak-core/build.gradle.kts`, `vojak-postgres/build.gradle.kts`,
   `vojak-kore/build.gradle.kts`, `Makefile`, `.github/workflows/check.yaml`.
+
+## Findings — 2026-09-29
+
+- **Done, checked on the Linux box**: `make build` starts `vojak-test-pg` (Postgres 18), then
+  `gradle build` — `jvmTest` and `linuxX64Test` each run `TestDatabaseTest` against it; `linuxArm64`
+  compiles. With the container stopped, **both** suites go red (`linuxX64`: a failed `SQLError`, not
+  an abort — a refused connection is not the `Io` path of B-13).
+- **Found by the negative control**: the first version reported `jvmTest` UP-TO-DATE with Postgres
+  stopped — green over nothing, because the database is an input Gradle does not see. Test tasks in
+  `vojak-postgres` are now never up to date and never cached (`vojak-postgres/build.gradle.kts`).
+- **CI not exercised**: there is no remote repository yet, so `.github/workflows/check.yaml`'s new
+  `build` job has not run on GitHub; it calls the same `make build` that ran here.
+- `.editorconfig` is the portfolio's reference copy; the sborka settings plugin refuses a build
+  without one, and `updateEditorconfig` run on the replica writes into a tree the replica then
+  overwrites — the file was taken from a sibling repository on the same sborka line, and
+  `checkEditorconfig` accepts it.
+- Research §1.4 corrected in passing: the Central check for kore had used a coordinate kore never
+  had; the right one is also absent from Central, so D8 stands.

@@ -1,0 +1,28 @@
+[versions]
+# The shared build conventions. The compiler comes from the `wip` catalog this release publishes,
+# which is why there is no kotlin version in this file.
+sborka = "0.4.0.93"
+kotlinx-coroutines = "1.11.0"
+# Pinned: it carries a Rust runtime, and on linuxX64 its 1.13.1 aborts the process on any I/O error
+# (research §1.5, B-13). A version change is a re-run of samples/probe, not a routine bump.
+sqlx4k = "1.13.1"
+# Not on Maven Central (research §1.4); resolved from the portfolio's reposilite through the
+# settings plugin's `io.github.youndie` filter.
+kore = "0.1.12"
+
+[libraries]
+kotlinx-coroutines-core = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-core", version.ref = "kotlinx-coroutines" }
+kotlinx-coroutines-test = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-test", version.ref = "kotlinx-coroutines" }
+
+# The database-agnostic half of sqlx4k: `Driver`, `Transaction`, `Statement`, `ResultSet`. NOT a
+# driver — research D3.
+sqlx4k-core = { module = "io.github.smyrgeorge:sqlx4k", version.ref = "sqlx4k" }
+# Tests only: something has to open a connection, and a test binary is an application.
+sqlx4k-postgres = { module = "io.github.smyrgeorge:sqlx4k-postgres", version.ref = "sqlx4k" }
+
+kore-core = { module = "io.github.youndie:kore-core", version.ref = "kore" }
+
+[plugins]
+sborkaKmp = { id = "io.github.youndie.sborka.kmp", version.ref = "sborka" }
+sborkaLint = { id = "io.github.youndie.sborka.lint", version.ref = "sborka" }
+sborkaPublish = { id = "io.github.youndie.sborka.publish", version.ref = "sborka" }
