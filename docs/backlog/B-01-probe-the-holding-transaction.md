@@ -1,7 +1,7 @@
 ---
 id: B-01
 title: "Measure what a held leadership costs and how it dies, before any code depends on it"
-status: open
+status: wip
 priority: P1
 size: S
 stage: stage-0-evidence

@@ -42,7 +42,7 @@ layer, so re-prioritising an item must never move its file.
 
 | Task | | Priority | Size | Blocked by |
 |---|---|---|---|---|
-| [B-01](docs/backlog/B-01-probe-the-holding-transaction.md) `[ ]` | Measure what a held leadership costs and how it dies, before any code depends on it | P1 | S | - |
+| [B-01](docs/backlog/B-01-probe-the-holding-transaction.md) `[~]` | Measure what a held leadership costs and how it dies, before any code depends on it | P1 | S | - |
 | [B-02](docs/backlog/B-02-scaffold-and-gate.md) `[ ]` | Scaffold the three modules and put the code in the same gate as the documents | P1 | S | B-01 |
 | [B-03](docs/backlog/B-03-lock-name-to-key.md) `[ ]` | A lock name maps to the same 64-bit key on every target | P1 | S | B-02 |
 | [B-04](docs/backlog/B-04-with-lock.md) `[ ]` | A named critical section: withLock, tryWithLock, and no unbounded wait | P1 | M | B-03 |
