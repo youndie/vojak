@@ -1,13 +1,13 @@
 ---
 id: B-13
-title: "On linuxX64 sqlx4k-postgres 1.13.1 aborts the process on any I/O error — choose the way out"
-status: question
+title: "A patched sqlx4k-postgres that reports I/O errors instead of aborting, published from a fork"
+status: open
 priority: P1
-size: M
+size: L
 stage: stage-2-election
 ---
 
-# B-13 — On linuxX64 sqlx4k-postgres 1.13.1 aborts the process on any I/O error — choose the way out
+# B-13 — A patched sqlx4k-postgres that reports I/O errors instead of aborting, published from a fork
 
 [B-01](B-01-probe-the-holding-transaction.md) measured it (research §1.5, Consequences 11–13):
 the native driver maps every `sqlx::Error` other than `Database`, `PoolTimedOut`, `PoolClosed` and
@@ -55,3 +55,33 @@ and publish the patched build so work does not wait on the answer.
 
 Choice 1 is **on hold**: nothing is filed upstream until the owner has looked at it. Choices 2–4
 are still open; the item stays a `question`, and B-06 / B-09 stay blocked on it.
+
+## Decision — 2026-09-30
+
+The owner chose **2 now, 1 later**: a fork with the patch, published to the portfolio's reposilite;
+the upstream report ([B-14](B-14-report-the-abort-upstream.md)) only once the fork has run in a
+consumer and the owner says so. The item is no longer a question.
+
+- **Fork `smyrgeorge/sqlx4k` as `youndie/sqlx4k`**, patch on a branch there; the upstream remote's
+  push URL disabled, as with the portfolio's other forks. Nothing is pushed or filed upstream.
+- **The patch**: `sqlx4k_postgres_error_result_of` maps `Io`, `Tls`, `Protocol` and the other
+  panicking variants to an error code with the error's text, the way `Database` already is — no
+  `panic!` left on a path a running connection can reach.
+- **Coordinates unchanged, version suffixed**: `io.github.smyrgeorge:sqlx4k-postgres:1.13.1-yio.<n>`
+  (and its per-target artefacts). A different group would put two copies of the same classes on a
+  consumer's classpath next to the plain `io.github.smyrgeorge:sqlx4k` vojak depends on; a suffix
+  keeps one set and makes the patched build impossible to mistake for the release.
+- Rejected: patching by rebuilding only the Rust static library into a consumer's build — it would
+  hide the change inside every consumer instead of naming it once.
+
+- AC: the probe (`samples/probe`, pointed at the patched version) runs `N1`, `H2`, `H3` and `H4` on
+  `linuxX64` **without exit 134**: the second call on a dead connection is a failed `Result`; the
+  same checks with 1.13.1 still abort (the control).
+- AC: vojak's own tests run against the patched driver on both targets, and `Sql.kt`'s native
+  "no rollback after a connection-gone failure" rule is re-decided against it (research
+  Consequence 12) — kept, or removed with the measurement that allows it.
+- AC: research §1.5 and D-numbers record the patched version, where it is published and the fork's
+  commit it was built from.
+- Anchors: `samples/probe/build.gradle.kts`, `samples/probe/run.sh`,
+  `vojak-postgres/src/commonMain/kotlin/io/github/youndie/vojak/postgres/Sql.kt`,
+  `gradle/libs.versions.toml`.
