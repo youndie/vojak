@@ -55,8 +55,11 @@ replica deletes anything else it did not send.
 
 ## Documentation checks
 
+On the Mac, with `LOCAL=1` — the build hook otherwise sends anything that looks like a build to the
+Linux box, and the checks read the working tree git is in:
+
 ```bash
-make check
+LOCAL=1 make check
 ```
 
 Documentation is in English; see [docs/README.md](docs/README.md) for the conventions.
