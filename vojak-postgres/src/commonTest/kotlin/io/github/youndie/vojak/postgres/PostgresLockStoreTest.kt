@@ -11,12 +11,14 @@ import io.github.youndie.vojak.advisoryKey
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.random.Random
 import kotlin.test.AfterTest
 import kotlin.test.Test
@@ -48,10 +50,20 @@ class PostgresLockStoreTest {
 
     private fun observer(): Driver = TestDatabase.driver().also { drivers += it }
 
+    /**
+     * Closed from a scope of their own and waited for with a bound: on linuxX64 closing a driver
+     * whose connection a transaction still holds did not return (B-04, mutation M3), and the close
+     * is not cancellable. A test that leaks a transaction fails on its own assertions; this only
+     * keeps the leak from hanging every test after it.
+     */
     @AfterTest
     fun closeDrivers() =
         runTest {
-            drivers.forEach { it.close() }
+            val closing = CoroutineScope(Dispatchers.Default).async { drivers.forEach { it.close() } }
+            withContext(Dispatchers.Default) {
+                withTimeoutOrNull(10.seconds) { closing.await() }
+                    ?: println("PostgresLockStoreTest: drivers did not close within 10 s; a transaction was left open")
+            }
         }
 
     // Real time: waiting is what several of these measure, and the database does not run on the

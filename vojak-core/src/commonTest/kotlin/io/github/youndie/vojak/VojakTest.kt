@@ -14,6 +14,11 @@ import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 
+/**
+ * Every [Vojak] here runs on the test scheduler's clock. One that did not — the real clock under
+ * virtual `delay` — turned a broken re-entry check into 30 real seconds of attempts and an
+ * OutOfMemoryError instead of a red test (B-04, mutation M2).
+ */
 @OptIn(ExperimentalCoroutinesApi::class)
 class VojakTest {
     private val migrate = LockName.of("migrate")
@@ -23,7 +28,8 @@ class VojakTest {
     @Test
     fun withLockReturnsTheBlocksValue() =
         runTest {
-            val vojak = Vojak(FakeLockStore { testScheduler.currentTime }, digest)
+            val vojak =
+                Vojak(FakeLockStore { testScheduler.currentTime }, digest, timeSource = testScheduler.timeSource)
             assertEquals(42, vojak.withLock(migrate) { 42 })
         }
 
@@ -64,7 +70,7 @@ class VojakTest {
             store.heldElsewhere += migrate.advisoryKey(digest)
             var ran = false
 
-            assertNull(Vojak(store, digest).tryWithLock(migrate) { ran = true })
+            assertNull(Vojak(store, digest, timeSource = testScheduler.timeSource).tryWithLock(migrate) { ran = true })
             assertEquals(false, ran)
             assertEquals(1, store.attempts.size)
         }
@@ -72,7 +78,8 @@ class VojakTest {
     @Test
     fun nestingTheSameNameIsRefusedInsteadOfDeadlocking() =
         runTest {
-            val vojak = Vojak(FakeLockStore { testScheduler.currentTime }, digest)
+            val vojak =
+                Vojak(FakeLockStore { testScheduler.currentTime }, digest, timeSource = testScheduler.timeSource)
 
             assertFailsWith<ReentrantLockException> { vojak.withLock(migrate) { vojak.withLock(migrate) { } } }
             assertFailsWith<ReentrantLockException> { vojak.withLock(migrate) { vojak.tryWithLock(migrate) { 1 } } }
@@ -85,7 +92,8 @@ class VojakTest {
     @Test
     fun nestingAnotherNameIsAllowed() =
         runTest {
-            val vojak = Vojak(FakeLockStore { testScheduler.currentTime }, digest)
+            val vojak =
+                Vojak(FakeLockStore { testScheduler.currentTime }, digest, timeSource = testScheduler.timeSource)
             assertEquals(2, vojak.withLock(migrate) { vojak.withLock(ledger) { 2 } })
         }
 

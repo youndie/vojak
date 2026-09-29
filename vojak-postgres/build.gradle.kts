@@ -1,3 +1,5 @@
+import java.time.Duration
+
 plugins {
     kotlin("multiplatform")
     alias(libs.plugins.sborkaKmp)
@@ -33,7 +35,12 @@ kotlin {
 // `make build` with Postgres stopped reported the JVM suite UP-TO-DATE — green over a database that
 // was not there (found in B-02 by stopping it on purpose). So a test task here is never up to date
 // and never taken from the build cache.
+//
+// AND A TEST RUN HAS A DEADLINE. On linuxX64 a coroutine suspended in the driver cannot be
+// cancelled (research §1.5), so `runTest`'s own timeout does not end a stuck test there: a mutant in
+// B-04 left the native test binary hanging for 29 minutes. Ten minutes is several times a green run.
 tasks.withType<AbstractTestTask>().configureEach {
     outputs.upToDateWhen { false }
     outputs.cacheIf { false }
+    timeout.set(Duration.ofMinutes(10))
 }
