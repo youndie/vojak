@@ -174,6 +174,24 @@ maps `Error::Database`, `PoolTimedOut`, `PoolClosed` and `WorkerCrashed` to erro
 (lines 366–398). The first call after the server ends a session reads the server's `FATAL`
 message, which is a `Database` error; every call after that meets a closed socket, which is `Io`.
 
+**The patched driver, measured 2026-09-30 (B-13).** The fork `youndie/sqlx4k`, branch
+`fix/postgres-io-errors-are-results` (commit `00bb4103`), reports every `sqlx::Error` variant it used
+to panic on as a `Database` error naming the variant
+(`youndie/sqlx4k@00bb4103!/sqlx4k-postgres/src/rust/src/lib.rs`). Built as
+`io.github.smyrgeorge:sqlx4k-postgres:1.13.1.1-yio` for `jvm` and `linuxX64` into the Linux box's
+local Maven repository, with the released core `sqlx4k:1.13.1` in its POM, and run through the same
+probe (`SQLX4K=1.13.1.1-yio samples/probe/run.sh`):
+
+| Fact | 1.13.1.1-yio | 1.13.1 (control, same probe code, same day) |
+|---|---|---|
+| Second call on a session the server ended (`N1`; the `rollback()` after `H2`, `H3`, `H4`) on linuxX64 | failed `Result`: `[Database] :: Io :: error communicating with database: expected to read 5 bytes, got 0 bytes at EOF` | exit 134, `panicked at src/lib.rs:372:25` |
+| Every other check on both targets | as in the table above | — |
+| Cancelling a statement stuck in a partition on linuxX64 | still not within 20 s | not within 20 s |
+| vojak's own suite (`vojak-postgres` on `jvm` and `linuxX64`) with the driver swapped by an init script | 12 of 12 pass | 12 of 12 pass |
+
+So the patch removes the abort and nothing else: Consequence 13 (native cancellation) is the
+driver's coroutine bridge, not its error mapping, and stays true.
+
 **Consequence 10.** D1 and D2 hold, on both targets, with numbers: the holding transaction costs
 vacuum nothing (H1), and the server-side lease ends a silent — even a partitioned — leader on time
 (H2, H4). Risk 1 is closed; the session-lock fallback is not needed.
@@ -200,6 +218,12 @@ transaction meanwhile (`N2`). So: a statement that fails with a connection-gone 
 by **no** call on native — the transaction and its connection are abandoned, one connection lost
 instead of the process — and by a `rollback()` on the JVM. That is what
 `vojak-postgres/src/commonMain/kotlin/io/github/youndie/vojak/postgres/Sql.kt` does.
+
+*Re-decided in B-13, kept:* with the patched driver the rollback after a connection-gone failure is
+a failed `Result` on linuxX64 too, so the rule is no longer needed there — but vojak takes the
+caller's `Driver` and cannot tell which build of it the caller linked. Skipping the rollback costs one
+connection with either build; rolling back costs the process with the release. The rule goes when
+the patched build (or an upstream release with the fix) is the documented minimum for native.
 
 **Consequence 13.** A coroutine suspended in a native sqlx4k call is not cancellable (`H4`: no
 `join()` within 20 s). D6's timer-based step-down is therefore required, not merely prudent; and
