@@ -1,7 +1,7 @@
 ---
 id: B-02
 title: "Scaffold the three modules and put the code in the same gate as the documents"
-status: open
+status: wip
 priority: P1
 size: S
 stage: stage-1-lock
