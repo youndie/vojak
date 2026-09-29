@@ -5,7 +5,7 @@ status: open
 priority: P1
 size: L
 stage: stage-2-election
-blocked_by: [B-07, B-08]
+blocked_by: [B-07, B-08, B-13]
 ---
 
 # B-09 — Fault suite: kill, partition and restart, judged by an overlap oracle that is shown to fail

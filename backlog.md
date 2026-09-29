@@ -42,20 +42,24 @@ layer, so re-prioritising an item must never move its file.
 
 | Task | | Priority | Size | Blocked by |
 |---|---|---|---|---|
-| [B-01](docs/backlog/B-01-probe-the-holding-transaction.md) `[ ]` | Measure what a held leadership costs and how it dies, before any code depends on it | P1 | S | - |
 | [B-02](docs/backlog/B-02-scaffold-and-gate.md) `[ ]` | Scaffold the three modules and put the code in the same gate as the documents | P1 | S | B-01 |
 | [B-03](docs/backlog/B-03-lock-name-to-key.md) `[ ]` | A lock name maps to the same 64-bit key on every target | P1 | S | B-02 |
 | [B-04](docs/backlog/B-04-with-lock.md) `[ ]` | A named critical section: withLock, tryWithLock, and no unbounded wait | P1 | M | B-03 |
-| [B-06](docs/backlog/B-06-election.md) `[ ]` | Election: hold the lock, keep the lease, publish Leadership as a StateFlow | P1 | L | B-01, B-04 |
+| [B-06](docs/backlog/B-06-election.md) `[ ]` | Election: hold the lock, keep the lease, publish Leadership as a StateFlow | P1 | L | B-01, B-04, B-13 |
 | [B-07](docs/backlog/B-07-while-leader.md) `[ ]` | whileLeader runs the singleton's loop and cancels it before leadership is observably lost | P1 | M | B-06 |
 | [B-08](docs/backlog/B-08-fencing-epoch.md) `[ ]` | Each leadership gets the next epoch, so a store can reject a stale leader | P1 | S | B-06 |
-| [B-09](docs/backlog/B-09-fault-suite.md) `[ ]` | Fault suite: kill, partition and restart, judged by an overlap oracle that is shown to fail | P1 | L | B-07, B-08 |
+| [B-09](docs/backlog/B-09-fault-suite.md) `[ ]` | Fault suite: kill, partition and restart, judged by an overlap oracle that is shown to fail | P1 | L | B-07, B-08, B-13 |
+| [B-13](docs/backlog/B-13-native-driver-aborts-on-io-errors.md) `[?]` | On linuxX64 sqlx4k-postgres 1.13.1 aborts the process on any I/O error — choose the way out | P1 | M | - |
 | [B-05](docs/backlog/B-05-lock-in-callers-transaction.md) `[ ]` | Take a lock inside the caller's transaction and release it with that transaction | P2 | S | B-04 |
 | [B-10](docs/backlog/B-10-kore-participant.md) `[ ]` | vojak-kore: hand leadership over during the drain instead of after the lease | P2 | S | B-07 |
 | [B-11](docs/backlog/B-11-reference-sample.md) `[ ]` | Reference consumer: two replicas, one singleton, a store that rejects a stale epoch | P2 | M | B-09, B-10 |
 | [B-12](docs/backlog/B-12-release-0-1-0.md) `[ ]` | Release 0.1.0: vojak-core and vojak-postgres on Maven Central, checked by an outside consumer | P2 | S | B-11 |
 
-## Closed (0)
+## Closed (1)
+
+**Evidence**
+
+- [B-01](docs/backlog/B-01-probe-the-holding-transaction.md) `[x]` - Measure what a held leadership costs and how it dies, before any code depends on it
 
 <!-- END INDEX -->
 
@@ -69,3 +73,10 @@ holds back vacuum is before three modules assume it does not.
 pool under a session lock belongs to someone else, in some cases in another language, and its reset
 behaviour is unverified. If B-01 refutes H1, the fallback is a session lock on a *dedicated*
 connection — still not one from the caller's pool.
+
+**On linuxX64 the driver, not the design, is the blocker.** B-01 confirmed D1 and D2 with numbers
+and found that `sqlx4k-postgres` 1.13.1 aborts the process on any I/O error
+([research §1.5](docs/research/research-architecture.md)). Catching it in Kotlin is impossible —
+the abort happens on a Rust thread — so the way out is a decision about the driver,
+[B-13](docs/backlog/B-13-native-driver-aborts-on-io-errors.md), which is a `question` on purpose:
+filing in someone else's repository, or keeping a patched build, is the owner's call.

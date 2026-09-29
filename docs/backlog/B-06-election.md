@@ -5,7 +5,7 @@ status: open
 priority: P1
 size: L
 stage: stage-2-election
-blocked_by: [B-01, B-04]
+blocked_by: [B-01, B-04, B-13]
 ---
 
 # B-06 — Election: hold the lock, keep the lease, publish Leadership as a StateFlow
