@@ -50,3 +50,8 @@ and publish the patched build so work does not wait on the answer.
   `linuxX64` instead of exit 134.
 - Anchors: `samples/probe/src/commonMain/kotlin/io/github/youndie/vojak/probe/Main.kt`,
   `samples/probe/run.sh`.
+
+## Owner's answer so far — 2026-09-29
+
+Choice 1 is **on hold**: nothing is filed upstream until the owner has looked at it. Choices 2–4
+are still open; the item stays a `question`, and B-06 / B-09 stay blocked on it.
