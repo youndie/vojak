@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+.venv/
+build/
+site/
+
+.idea/
+.vscode/
+.DS_Store
+.gradle/
+.kotlin/
+local.properties
