@@ -38,7 +38,7 @@ layer, so re-prioritising an item must never move its file.
 
 <!-- BEGIN INDEX -->
 
-## Open (9)
+## Open (8)
 
 | Task | | Priority | Size | Blocked by |
 |---|---|---|---|---|
@@ -47,12 +47,11 @@ layer, so re-prioritising an item must never move its file.
 | [B-08](docs/backlog/B-08-fencing-epoch.md) `[ ]` | Each leadership gets the next epoch, so a store can reject a stale leader | P1 | S | B-06 |
 | [B-09](docs/backlog/B-09-fault-suite.md) `[ ]` | Fault suite: kill, partition and restart, judged by an overlap oracle that is shown to fail | P1 | L | B-07, B-08, B-13 |
 | [B-13](docs/backlog/B-13-native-driver-aborts-on-io-errors.md) `[?]` | On linuxX64 sqlx4k-postgres 1.13.1 aborts the process on any I/O error — choose the way out | P1 | M | - |
-| [B-05](docs/backlog/B-05-lock-in-callers-transaction.md) `[~]` | Take a lock inside the caller's transaction and release it with that transaction | P2 | S | B-04 |
 | [B-10](docs/backlog/B-10-kore-participant.md) `[ ]` | vojak-kore: hand leadership over during the drain instead of after the lease | P2 | S | B-07 |
 | [B-11](docs/backlog/B-11-reference-sample.md) `[ ]` | Reference consumer: two replicas, one singleton, a store that rejects a stale epoch | P2 | M | B-09, B-10 |
 | [B-12](docs/backlog/B-12-release-0-1-0.md) `[ ]` | Release 0.1.0: vojak-core and vojak-postgres on Maven Central, checked by an outside consumer | P2 | S | B-11 |
 
-## Closed (4)
+## Closed (5)
 
 **Evidence**
 
@@ -63,6 +62,7 @@ layer, so re-prioritising an item must never move its file.
 - [B-02](docs/backlog/B-02-scaffold-and-gate.md) `[x]` - Scaffold the three modules and put the code in the same gate as the documents
 - [B-03](docs/backlog/B-03-lock-name-to-key.md) `[x]` - A lock name maps to the same 64-bit key on every target
 - [B-04](docs/backlog/B-04-with-lock.md) `[x]` - A named critical section: withLock, tryWithLock, and no unbounded wait
+- [B-05](docs/backlog/B-05-lock-in-callers-transaction.md) `[x]` - Take a lock inside the caller's transaction and release it with that transaction
 
 <!-- END INDEX -->
 
