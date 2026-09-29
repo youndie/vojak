@@ -191,6 +191,16 @@ for good (`N4`); on `linuxX64` the only call that ends it safely is the *first* 
 holder may issue at most one call after a failure, and it has to be `rollback()`. That rule is
 necessary and not sufficient: it does nothing for the hung statement of Consequence 11.
 
+*Correction found in B-04:* "at most one call after a failure, and it has to be `rollback()`" is
+wrong, and the table above already says why. When the failure came from a **statement** on a dead
+connection, that statement *was* the first call; the `rollback()` after it is the second, and it
+aborts the process (`H2`, `H3`). What is safe on `linuxX64` is a `rollback()` that is itself the
+first call since the session died — the release after a block, when nothing touched the
+transaction meanwhile (`N2`). So: a statement that fails with a connection-gone SQLSTATE is followed
+by **no** call on native — the transaction and its connection are abandoned, one connection lost
+instead of the process — and by a `rollback()` on the JVM. That is what
+`vojak-postgres/src/commonMain/kotlin/io/github/youndie/vojak/postgres/Sql.kt` does.
+
 **Consequence 13.** A coroutine suspended in a native sqlx4k call is not cancellable (`H4`: no
 `join()` within 20 s). D6's timer-based step-down is therefore required, not merely prudent; and
 the cancelled call keeps its connection until the network returns — which, per Consequence 11, is

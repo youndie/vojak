@@ -52,9 +52,11 @@ replica deletes anything else it did not send.
   driver artefact: two sqlx4k drivers in one native binary do not link (research §1.4, D3).
 - **Every SQL statement goes through one function.** On linuxX64 the driver aborts the process on
   any I/O error (research §1.5); a workaround needs one home.
-- **After a failure, a transaction gets exactly one more call, and it is `rollback()`.** A second
-  call on a dead connection aborts a native process; no call at all leaks the connection
-  (research Consequence 12).
+- **A statement that failed because the connection is gone is the last call on that transaction on
+  linuxX64** — a `rollback()` after it aborts the process; skipping it costs one pool connection.
+  A `rollback()` that is itself the first call since the session died is safe on both targets.
+  Both rules live in `Sql.kt` (`endAfterFailure`, `release`); research Consequence 12 and its
+  correction.
 - **A test that needs Postgres fails when Postgres is absent.** It never skips, and its task is never
   up to date or taken from the build cache — the database is an input Gradle cannot see, and a cached
   green over a stopped database is exactly what B-02 found (`vojak-postgres/build.gradle.kts`).
