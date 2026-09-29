@@ -42,7 +42,7 @@ layer, so re-prioritising an item must never move its file.
 
 | Task | | Priority | Size | Blocked by |
 |---|---|---|---|---|
-| [B-03](docs/backlog/B-03-lock-name-to-key.md) `[ ]` | A lock name maps to the same 64-bit key on every target | P1 | S | B-02 |
+| [B-03](docs/backlog/B-03-lock-name-to-key.md) `[~]` | A lock name maps to the same 64-bit key on every target | P1 | S | B-02 |
 | [B-04](docs/backlog/B-04-with-lock.md) `[ ]` | A named critical section: withLock, tryWithLock, and no unbounded wait | P1 | M | B-03 |
 | [B-06](docs/backlog/B-06-election.md) `[ ]` | Election: hold the lock, keep the lease, publish Leadership as a StateFlow | P1 | L | B-01, B-04, B-13 |
 | [B-07](docs/backlog/B-07-while-leader.md) `[ ]` | whileLeader runs the singleton's loop and cancels it before leadership is observably lost | P1 | M | B-06 |

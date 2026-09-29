@@ -1,7 +1,7 @@
 ---
 id: B-03
 title: "A lock name maps to the same 64-bit key on every target"
-status: open
+status: wip
 priority: P1
 size: S
 stage: stage-1-lock
