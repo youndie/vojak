@@ -128,4 +128,50 @@ class VojakTest {
             assertEquals("second", second.await())
             first.join()
         }
+
+    @Test
+    fun acquireWithinRetriesTheAttemptUntilItSucceeds() =
+        runTest {
+            val vojak =
+                Vojak(
+                    FakeLockStore {
+                        testScheduler.currentTime
+                    },
+                    digest,
+                    Backoff(100.milliseconds, 100.milliseconds),
+                    testScheduler.timeSource,
+                )
+            val tries = mutableListOf<Long>()
+
+            vojak.acquireWithin(ledger, 5.seconds) { key ->
+                tries += testScheduler.currentTime
+                assertEquals(ledger.advisoryKey(digest), key)
+                tries.size == 3
+            }
+
+            assertEquals(listOf(0L, 100L, 200L), tries)
+        }
+
+    @Test
+    fun acquireWithinGivesUpAfterWaitAtMost() =
+        runTest {
+            val vojak =
+                Vojak(FakeLockStore { testScheduler.currentTime }, digest, timeSource = testScheduler.timeSource)
+
+            assertFailsWith<LockTimeoutException> { vojak.acquireWithin(ledger, 1.seconds) { false } }
+            assertEquals(1000L, testScheduler.currentTime)
+        }
+
+    @Test
+    fun acquireWithinIsRefusedInsideABlockHoldingTheSameName() =
+        runTest {
+            val vojak =
+                Vojak(FakeLockStore { testScheduler.currentTime }, digest, timeSource = testScheduler.timeSource)
+
+            assertFailsWith<ReentrantLockException> {
+                vojak.withLock(
+                    ledger,
+                ) { vojak.acquireWithin(ledger, 1.seconds) { true } }
+            }
+        }
 }

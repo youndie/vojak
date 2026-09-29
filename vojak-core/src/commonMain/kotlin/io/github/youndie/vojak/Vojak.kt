@@ -38,13 +38,34 @@ public class Vojak(
         name: LockName,
         waitAtMost: Duration = DEFAULT_WAIT,
         block: suspend () -> T,
+    ): T = retrying(name, waitAtMost) { key -> store.tryHolding(key) { holding(key, block) } }
+
+    /**
+     * Retries [tryOnce] for [name]'s key — with [backoff], for at most [waitAtMost] — until it
+     * reports the key taken. The waiting and re-entry rules of [withLock], for a store whose attempt
+     * does not run a block: `vojak-postgres`'s lock inside the caller's own transaction is one.
+     *
+     * @param tryOnce one non-blocking attempt on the key; `true` when it was taken.
+     * @throws LockTimeoutException when [tryOnce] did not succeed within [waitAtMost].
+     * @throws ReentrantLockException when called from inside a block already holding [name].
+     */
+    public suspend fun acquireWithin(
+        name: LockName,
+        waitAtMost: Duration,
+        tryOnce: suspend (key: Long) -> Boolean,
+    ): Unit = retrying(name, waitAtMost) { key -> if (tryOnce(key)) Attempt.Held(Unit) else Attempt.Busy }
+
+    private suspend fun <T> retrying(
+        name: LockName,
+        waitAtMost: Duration,
+        attempt: suspend (key: Long) -> Attempt<T>,
     ): T {
         val key = keyOf(name)
         val deadline = timeSource.markNow() + waitAtMost
         var pause = backoff.initial
         while (true) {
-            when (val attempt = store.tryHolding(key) { holding(key, block) }) {
-                is Attempt.Held -> return attempt.value
+            when (val outcome = attempt(key)) {
+                is Attempt.Held -> return outcome.value
                 Attempt.Busy -> Unit
             }
             val left = -deadline.elapsedNow()
