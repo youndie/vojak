@@ -1,7 +1,7 @@
 ---
 id: B-13
 title: "A patched sqlx4k-postgres that reports I/O errors instead of aborting, published from a fork"
-status: open
+status: wip
 priority: P1
 size: L
 stage: stage-2-election
