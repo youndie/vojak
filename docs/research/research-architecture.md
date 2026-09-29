@@ -19,8 +19,9 @@ piece of infrastructure bought to answer one question.
 
 This document records **verified facts** (what was actually read in code and artefacts),
 **decisions taken**, and **risks**. Anything unverified is marked as a hypothesis and says where it
-will be checked. There is no code yet: every fact below was read out of a dependency's artefact or
-the official documentation of the version named next to it.
+will be checked. There is no library code yet: every fact in §1.1–§1.4 was read out of a
+dependency's artefact or the official documentation of the version named next to it, and §1.5 was
+measured by a throwaway probe against a real Postgres.
 
 This is the entry point of the documentation: the layer documents say what the system does, and
 this one says why it is built that way. It lives here permanently and is amended as the
@@ -119,6 +120,8 @@ address. What it establishes is the failure class, not this bug: a Rust driver b
 end the process where a JVM driver would throw. A heartbeat is the one
 statement vojak runs forever; how the native driver reports a connection the *server* has killed
 is the most important unknown in the project (H3).
+*Measured, 2026-09-29 (§1.5):* the failure class is ours to cite now, reproduced by the probe on a
+different trigger — any I/O error ends the process.
 
 ### 1.4 The two libraries vojak plugs into
 
@@ -135,6 +138,58 @@ work is cancelled and before the pool it needs is closed — and it is the whole
 integration. It also cannot be published to Maven Central while kore is not there: a POM on
 Central that names a coordinate Central does not have is a green upload and an unbuildable
 consumer (D8).
+
+### 1.5 What a held leadership costs and how it dies — measured (B-01)
+
+Measured on 2026-09-29 by [`samples/probe/`](../../samples/probe/) — one program, run on
+`linuxX64` and on the JVM against PostgreSQL 18.6 in Docker, with a socat proxy in front for the
+partition (`docker pause` of the proxy: the connection stays open and nothing arrives). Every check
+runs in its own process (`samples/probe/run.sh`), because on `linuxX64` some of them end it. The
+check ids below are the ones the probe prints.
+
+| Fact | linuxX64 | jvm | Check |
+|---|---|---|---|
+| A holder that ran only `pg_try_advisory_xact_lock`, `SET LOCAL` and `SELECT 1` shows `backend_xid` and `backend_xmin` **null**, state `idle in transaction`; 1000 tuples deleted while it is open are all removed by `VACUUM` (`pgstattuple`: 0 dead) | yes | yes | `H1` |
+| Control: a transaction that wrote shows a `backend_xid`; a REPEATABLE READ transaction with a snapshot shows a `backend_xmin` and leaves all 1000 dead tuples in place | yes | yes | `H1-control-xid`, `H1-control-xmin` |
+| `SET LOCAL idle_in_transaction_session_timeout = '2s'` on the holder: after 3.5 s idle the session is gone and the lock is free | yes | yes | `H2` |
+| Control: the same holder without the setting is alive and still holds the lock after 3.5 s | yes | yes | `H2-control` |
+| After the transaction commits, the same pooled connection reads `idle_in_transaction_session_timeout = 0` — `SET LOCAL` does not leak into the pool | — | yes | `H2-local` (on linuxX64 not reached: the process had ended in `H2`) |
+| **Partitioned** holder with a 5 s lease: the server ends the session and frees the lock after | 5029 ms | 5045 ms | `H4-server-lease` |
+| The **first** call on a transaction whose session the server ended (idle timeout or `pg_terminate_backend`) — statement, `rollback()` or `commit()` — returns a failed `Result` | yes, `[25P03]` / `[57P01]` with the server's text | yes, "Cannot exchange messages because the connection is closed" | `H2`, `H3`, `N1`, `N2`, `N3` |
+| The **second** call on that transaction | **the process aborts** (SIGABRT, exit 134): `thread 'tokio-rt-worker' panicked at src/lib.rs:372:25: Io :: Unexpected error occurred.` | a failed `Result` | `N1`, and the `rollback()` after `H2`, `H3`, `H4` |
+| A statement sent into the partition returns within 3 s | no | no | `H4` |
+| Cancelling that statement's coroutine, then `join()` | **not within 20 s** | 3–4 ms | `H4` |
+| A transaction abandoned without `rollback()`/`commit()` keeps its connection: a pool of one times out acquiring (10 s `acquireTimeout`) | yes (`PoolTimedOut`) | yes | `N4` |
+| An idle pooled connection killed by the server, and a Postgres restart under an idle pool: the next plain query succeeds | yes | yes | `N5`, `N6` |
+
+Where the abort comes from, read in the driver's Rust source:
+`smyrgeorge/sqlx4k@1.13.1!/sqlx4k-postgres/src/rust/src/lib.rs` — `sqlx4k_postgres_error_result_of`
+maps `Error::Database`, `PoolTimedOut`, `PoolClosed` and `WorkerCrashed` to error codes, and
+**every other variant — `Io`, `Tls`, `Protocol`, `Configuration`, `Decode`, … — to `panic!`**
+(lines 366–398). The first call after the server ends a session reads the server's `FATAL`
+message, which is a `Database` error; every call after that meets a closed socket, which is `Io`.
+
+**Consequence 10.** D1 and D2 hold, on both targets, with numbers: the holding transaction costs
+vacuum nothing (H1), and the server-side lease ends a silent — even a partitioned — leader on time
+(H2, H4). Risk 1 is closed; the session-lock fallback is not needed.
+
+**Consequence 11.** On `linuxX64` with `sqlx4k-postgres` 1.13.1, **any I/O error on a connection
+ends the process**. That is not specific to vojak: a Postgres restart, a failover or a network
+blip during a transaction aborts every native service on this driver whose code touches the
+connection twice. For vojak it is unavoidable by construction — the leader's heartbeat is exactly
+the call that meets a dead socket, and a statement stuck in a partition fails with `Io` the moment
+the network returns, whether or not anyone is still waiting for it. On the JVM the same paths are
+ordinary failed `Result`s.
+
+**Consequence 12.** A dead transaction must still be ended, or its connection is lost to the pool
+for good (`N4`); on `linuxX64` the only call that ends it safely is the *first* one. So the native
+holder may issue at most one call after a failure, and it has to be `rollback()`. That rule is
+necessary and not sufficient: it does nothing for the hung statement of Consequence 11.
+
+**Consequence 13.** A coroutine suspended in a native sqlx4k call is not cancellable (`H4`: no
+`join()` within 20 s). D6's timer-based step-down is therefore required, not merely prudent; and
+the cancelled call keeps its connection until the network returns — which, per Consequence 11, is
+also when it aborts the process.
 
 ---
 
@@ -237,6 +292,8 @@ says so, rather than implying it.
 
 ## 3. Risks and open questions
 
+**Risk 1 — closed by measurement (§1.5, `H1`).** Kept as written, with the answer after it.
+
 **Risk 1. The holding transaction may hold back vacuum for the whole leadership.** Mechanism: an
 open transaction with a snapshot pins the xmin horizon (§1.2). Hypothesis H1 is that a READ
 COMMITTED transaction which only ran `pg_try_advisory_xact_lock`, `SET LOCAL` and `SELECT 1` has
@@ -244,17 +301,26 @@ no `backend_xid` and no `backend_xmin` between statements, and costs nothing. Mi
 measures both columns of `pg_stat_activity` during a held leadership, with a positive control (a
 transaction that did write must show a `backend_xid`). If H1 is false, D1 flips to a session lock
 on a dedicated connection with `idle_session_timeout` as the lease (Postgres ≥ 14), and D5 is moot.
+*Answer, 2026-09-29:* H1 holds on both targets, and the control shows the measurement can see the
+opposite (§1.5). D1 stands; D5 still matters — the `H1-control-xid` row is what a write in the
+holding transaction would cost.
 
 **Risk 2. The native driver may kill the process when the server kills the session.** Mechanism:
 Consequence 8. Mitigation: B-01 terminates the holder's session with `pg_terminate_backend` and
 with the idle timeout, on `linuxX64`, and asserts on the *process* surviving, not only on the
 `Result`; every statement vojak sends goes through one function, so a workaround has one home.
+*Answer, 2026-09-29: realised, and wider than stated.* The first call after the server ends the
+session is a clean failure; the second aborts the process, and so does any I/O error on any call
+(§1.5, Consequence 11). This is no longer a risk to mitigate inside vojak but a property of the
+driver version, and what to do about it is a decision for the owner:
+[B-13](../backlog/B-13-native-driver-aborts-on-io-errors.md).
 
 **Risk 3. A heartbeat call may not return while the network is partitioned (H4).** Mechanism:
 cooperative cancellation does not interrupt a call that is blocked below the coroutine; a
 `withTimeout` around a child waits for the child. Mitigation: D6 — the step-down is a timer, not the
 call's return; B-01 measures how long the call takes to come back so that the cleanup cost is a
-number.
+number. *Answer, 2026-09-29:* on the JVM cancellation completes in 3–4 ms; on `linuxX64` it does
+not complete within 20 s (§1.5, Consequence 13). The timer is load-bearing on native.
 
 **Risk 4. Clock drift larger than the lease margin.** Mechanism: the leader measures `localLease`
 on its clock, the server measures `serverLease` on its own. Mitigation: a margin of half the lease;
@@ -273,8 +339,17 @@ epoch table continues from the replicated value.
 **H0.** Neither the Rust pool (native) nor r2dbc-pool (JVM) resets session state on release.
 Not needed by D1; recorded so that nobody reintroduces a session lock on the assumption either way.
 
-**H5.** The JVM half (r2dbc) behaves like the native half for H2–H4. Checked in B-01 on both
-targets.
+**H5 — refuted in part (§1.5).** The JVM half agrees with the native one on H1, H2 and the server
+lease; it disagrees on what happens after a connection dies (a failed `Result` against a process
+abort) and on cancellation (milliseconds against not at all). A suite green on the JVM says nothing
+about those two on `linuxX64`, which is why the fault suite ([B-09](../backlog/B-09-fault-suite.md))
+runs native binaries.
+
+**Quirk of the probe, not of the design.** On `linuxX64` (Kotlin 2.4.20), comparing a nullable
+`Duration` in the probe threw `RuntimeException: Unexpected receiver type: kotlin.time.Duration`,
+which the JVM did not; the probe measures in `Long` milliseconds instead
+(`samples/probe/src/commonMain/kotlin/io/github/youndie/vojak/probe/Main.kt`). Not reduced to a
+minimal reproduction; recorded so that the next person meeting it knows it is not the driver.
 
 **Open question 1 — the first consumer.** Which service moves to two replicas first, and which of
 its singletons keep state in process that a handover loses. That decides the reference sample.
@@ -294,7 +369,8 @@ Out of the first version: polling first, and only a measured handover time would
 
 ## 4. What happens next
 
-The order of work and the acceptance criteria live in the [backlog](../../backlog.md). The first
-step is [B-01](../backlog/B-01-probe-the-holding-transaction.md): H1–H5 answered by measurement
-against a real Postgres on both targets, because D1 and D2 — the two decisions everything else
-compiles against — rest on them.
+The order of work and the acceptance criteria live in the [backlog](../../backlog.md).
+[B-01](../backlog/B-01-probe-the-holding-transaction.md) answered H1–H5 (§1.5): D1 and D2 stand.
+What stands between the design and a native election is the driver's abort on I/O errors —
+[B-13](../backlog/B-13-native-driver-aborts-on-io-errors.md), a decision for the owner. The lock
+and the build ([B-02](../backlog/B-02-scaffold-and-gate.md) onwards) do not wait for it.

@@ -3,7 +3,8 @@
 Leader election and a distributed lock for Kotlin services on Postgres advisory locks.
 **Native-first** — `linuxX64` decides the design, `jvm` follows, `linuxArm64` is compiled.
 
-**There is no code yet.** Every path under `vojak-*/src/` or `samples/` named in a document is where
+**There is no library code yet.** The one piece of code is `samples/probe/` — the B-01 probe, a
+separate Gradle build outside any gate. Every path under `vojak-*/src/` named in a document is where
 the code *will* live. `backlog.md` and the build are what say how far things have got; a sentence
 here about the state of the project has no way to fail, so prefer them.
 
@@ -25,12 +26,29 @@ here about the state of the project has no way to fail, so prefer them.
 3. The layer document the task belongs to — `docs/features/`, `docs/services/`. The map is
    [docs/README.md](docs/README.md).
 
+## Where things build
+
+This repository is a mutagen session (`vojak`, one-way replica to the Linux box). Gradle, Docker and
+native binaries run there, through the wrapper; edits, `git` and the documentation checks stay on
+the Mac:
+
+```bash
+cd samples/probe && ~/.claude/bin/wsl-run ./run.sh          # the B-01 probe, both targets
+CHECKS=N1 ~/.claude/bin/wsl-run ./run.sh                    # one check
+```
+
+Results land under `samples/probe/build/results/` on the Linux side — under `build/`, because the
+replica deletes anything else it did not send.
+
 ## Rules that are not visible in the code
 
 - **The library depends on plain `io.github.smyrgeorge:sqlx4k` and takes a `Driver`.** Never a
   driver artefact: two sqlx4k drivers in one native binary do not link (research §1.4, D3).
-- **Every SQL statement goes through one function.** A consumer has seen the native driver turn a
-  bad parameter into a process-killing panic (research Consequence 8); a workaround needs one home.
+- **Every SQL statement goes through one function.** On linuxX64 the driver aborts the process on
+  any I/O error (research §1.5); a workaround needs one home.
+- **After a failure, a transaction gets exactly one more call, and it is `rollback()`.** A second
+  call on a dead connection aborts a native process; no call at all leaks the connection
+  (research Consequence 12).
 - **A test that needs Postgres fails when Postgres is absent.** It never skips.
 - **An oracle is accepted only after it has been shown to fail** — the fault suite is run once with
   the lease margin removed and must report an overlap (B-09).
