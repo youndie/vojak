@@ -1,7 +1,7 @@
 ---
 id: B-04
 title: "A named critical section: withLock, tryWithLock, and no unbounded wait"
-status: open
+status: wip
 priority: P1
 size: M
 stage: stage-1-lock
