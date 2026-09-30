@@ -3,10 +3,12 @@
 Leader election and a distributed lock for Kotlin services on Postgres advisory locks.
 **Native-first** — `linuxX64` decides the design, `jvm` follows, `linuxArm64` is compiled.
 
-**There is no library code yet.** The one piece of code is `samples/probe/` — the B-01 probe, a
-separate Gradle build outside any gate. Every path under `vojak-*/src/` named in a document is where
-the code *will* live. `backlog.md` and the build are what say how far things have got; a sentence
-here about the state of the project has no way to fail, so prefer them.
+**The lock is built; the election is not.** `vojak-core` has names, keys and the lock API,
+`vojak-postgres` the lock store; `Election`, `whileLeader`, the epoch and `vojak-kore` are still
+paths where code *will* live (B-06 onwards). `samples/probe/` is the B-01 probe — a separate Gradle
+build outside any gate. `backlog.md` and the build are what say how far things have got; a sentence
+here about the state of the project has no way to fail, so prefer them — this one said "no library
+code yet" for three items after it stopped being true.
 
 ## How to start a session
 
@@ -50,8 +52,10 @@ replica deletes anything else it did not send.
 
 - **The library depends on plain `io.github.smyrgeorge:sqlx4k` and takes a `Driver`.** Never a
   driver artefact: two sqlx4k drivers in one native binary do not link (research §1.4, D3).
-- **Every SQL statement goes through one function.** On linuxX64 the driver aborts the process on
-  any I/O error (research §1.5); a workaround needs one home.
+- **Every SQL statement goes through one function.** On linuxX64 the released driver
+  (`sqlx4k-postgres` 1.13.1) aborts the process on any I/O error; the fork's
+  `1.13.1.1-yio` in reposilite does not (research §1.5, B-13). vojak cannot tell which one a
+  consumer linked, so a workaround needs one home.
 - **A statement that failed because the connection is gone is the last call on that transaction on
   linuxX64** — a `rollback()` after it aborts the process; skipping it costs one pool connection.
   A `rollback()` that is itself the first call since the session died is safe on both targets.
