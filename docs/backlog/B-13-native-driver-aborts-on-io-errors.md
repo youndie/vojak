@@ -1,7 +1,7 @@
 ---
 id: B-13
 title: "A patched sqlx4k-postgres that reports I/O errors instead of aborting, published from a fork"
-status: question
+status: open
 priority: P1
 size: L
 stage: stage-2-election
@@ -124,3 +124,11 @@ owner. What it would take, once agreed:
 The route in 1 also grants writing under upstream's group directory in our own repository — that
 directory holds nothing else there, but the owner should see it named. Until then, B-06 and B-09
 stay blocked on this item.
+
+## Owner's answer — 2026-09-30
+
+Step 1 done on the owner's word: `reposilite-token` dispatched in the infra repository (run
+36676608120) with `repository=youndie/sqlx4k`, `name=sqlx4k`,
+`paths=/snapshots/io/github/smyrgeorge/`. It reports `routes now: /snapshots/io/github/smyrgeorge/
+(read, write)` and `REPOSILITE_USER`, `REPOSILITE_SECRET` stored in the fork. The item is open again;
+steps 2 (the fork's publish workflow) and 3 (the tag) are what is left.
