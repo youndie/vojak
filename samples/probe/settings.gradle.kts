@@ -9,9 +9,10 @@ plugins {
 dependencyResolutionManagement {
     repositories {
         mavenCentral()
-        // B-13: the patched driver, built from the fork and published to the local repository of the
-        // box that runs the probe. Only `-yio` versions come from here, so a release never does.
-        mavenLocal {
+        // B-13: the patched driver, published from the fork `youndie/sqlx4k` to the portfolio's
+        // reposilite under upstream's coordinates. Only `-yio` versions come from here, so a release
+        // never does.
+        maven("https://reposilite.kotlin.website/snapshots") {
             content {
                 includeVersionByRegex("io\\.github\\.smyrgeorge", "sqlx4k-postgres.*", ".*-yio")
             }

@@ -189,6 +189,12 @@ probe (`SQLX4K=1.13.1.1-yio samples/probe/run.sh`):
 | Cancelling a statement stuck in a partition on linuxX64 | still not within 20 s | not within 20 s |
 | vojak's own suite (`vojak-postgres` on `jvm` and `linuxX64`) with the driver swapped by an init script | 12 of 12 pass | 12 of 12 pass |
 
+**Published 2026-09-30**: `io.github.smyrgeorge:sqlx4k-postgres:1.13.1.1-yio` with `jvm`, `linuxX64`
+and `linuxArm64` variants, at `https://reposilite.kotlin.website/snapshots`, by the fork's
+`publish-reposilite.yml` from tag `1.13.1.1-yio` (commit `19abb319`; run 36688036577 — the module's own
+suite on `jvm` and `linuxX64` first, then every coordinate read back as 200). The probe then resolved
+it from there — not from a local repository — and repeated the table above on both targets.
+
 So the patch removes the abort and nothing else: Consequence 13 (native cancellation) is the
 driver's coroutine bridge, not its error mapping, and stays true.
 

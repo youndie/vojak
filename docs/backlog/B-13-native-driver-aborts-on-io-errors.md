@@ -1,7 +1,7 @@
 ---
 id: B-13
 title: "A patched sqlx4k-postgres that reports I/O errors instead of aborting, published from a fork"
-status: wip
+status: done
 priority: P1
 size: L
 stage: stage-2-election
@@ -132,3 +132,25 @@ Step 1 done on the owner's word: `reposilite-token` dispatched in the infra repo
 `paths=/snapshots/io/github/smyrgeorge/`. It reports `routes now: /snapshots/io/github/smyrgeorge/
 (read, write)` and `REPOSILITE_USER`, `REPOSILITE_SECRET` stored in the fork. The item is open again;
 steps 2 (the fork's publish workflow) and 3 (the tag) are what is left.
+
+## Iteration 2 — 2026-09-30, done
+
+- **Published**: `io.github.smyrgeorge:sqlx4k-postgres:1.13.1.1-yio` — `jvm`, `linuxX64`, `linuxArm64` —
+  in reposilite snapshots, by the fork's `publish-reposilite.yml` on tag `1.13.1.1-yio`. The workflow
+  runs the module's own suite on `jvm` and `linuxX64` against Postgres first, checks the publication
+  carries every target and depends on the released core `sqlx4k:1.13.1` (and that the core itself is
+  not published), refuses a taken version, and reads every coordinate back.
+- **Two dry runs before the real tag** (`1.13.1.1-yio-dry.1`, `-dry.2`, left in the fork as the
+  record): the first failed 93 JVM tests on Postgres's default 100 connections — upstream runs its
+  test database with `max_connections=512` and does not run the suite in its own CI at all; the
+  second was green end to end without uploading.
+- **AC 1, through the published path**: the probe resolved the driver from reposilite (the box's
+  local copies were deleted first; Gradle's module cache now holds it), and every check on linuxX64
+  finished with exit 0 — the second call on a dead connection is `[Database] :: Io :: …`.
+- **AC 2**: met in iteration 1; the `Sql.kt` rule stays, reason at research Consequence 12.
+- **AC 3**: research §1.5 records the fork, the commit, the version, where it is published and the
+  run that published it.
+- **Not done here, on purpose**: vojak's own test suite still uses the released 1.13.1 — which build
+  vojak's tests and docs ask consumers for is a decision for [B-06](B-06-election.md), the first item
+  whose native behaviour depends on it. [B-14](B-14-report-the-abort-upstream.md) (the upstream
+  report) stays the owner's question.
