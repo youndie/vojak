@@ -1,7 +1,7 @@
 ---
 id: B-06
 title: "Election: hold the lock, keep the lease, publish Leadership as a StateFlow"
-status: open
+status: wip
 priority: P1
 size: L
 stage: stage-2-election
