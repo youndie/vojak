@@ -27,3 +27,14 @@ public class LockLostException(
     message: String,
     cause: Throwable?,
 ) : RuntimeException(message, cause)
+
+/**
+ * A second [Election] for [name] from the same [Vojak] while the first is open.
+ *
+ * Refused rather than passed to Postgres: the second would campaign on its own session and either
+ * wait for the first for ever or, sharing a connection, silently "win" by re-entrancy — in both
+ * cases the process would hold two views of one leadership (research Consequence 2).
+ */
+public class DuplicateElectionException(
+    public val name: LockName,
+) : IllegalStateException("an election for '$name' is already open on this Vojak; close it before opening another")

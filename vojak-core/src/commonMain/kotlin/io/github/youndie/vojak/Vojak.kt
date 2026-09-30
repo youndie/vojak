@@ -1,7 +1,10 @@
 package io.github.youndie.vojak
 
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlin.coroutines.AbstractCoroutineContextElement
 import kotlin.coroutines.CoroutineContext
@@ -93,6 +96,38 @@ public class Vojak(
         }
     }
 
+    private val electionsLock = Mutex()
+    private val openElections = mutableSetOf<Long>()
+
+    /**
+     * Starts campaigning for [name] in [scope] and returns the [Election]; [Election.leadership]
+     * says when this process leads. The campaign runs until [Election.close] or until [scope] ends.
+     *
+     * @param candidate how this process is shown to operators — a pod name; `[A-Za-z0-9._-]{1,63}`.
+     *   Never used to decide anything.
+     * @param onStoreFailure every failure of the store while campaigning or renewing — for the
+     *   service's log. [Election.leadership] already reflects each one (a failed attempt leaves this
+     *   process a follower, a failed renewal steps it down); this is where it gets a name.
+     * @throws DuplicateElectionException when an election for [name] is already open on this [Vojak].
+     */
+    public suspend fun elect(
+        name: LockName,
+        candidate: String,
+        scope: CoroutineScope,
+        timing: ElectionTiming = ElectionTiming(),
+        onStoreFailure: (Throwable) -> Unit = {},
+    ): Election {
+        require(CANDIDATE.matches(candidate)) { "a candidate must match [A-Za-z0-9._-]{1,63}, got '$candidate'" }
+        val key = name.advisoryKey(namespace)
+        electionsLock.withLock { if (!openElections.add(key)) throw DuplicateElectionException(name) }
+        val election =
+            Election(name, key, candidate, store, timing, timeSource, onStoreFailure) {
+                electionsLock.withLock { openElections.remove(key) }
+            }
+        election.start(scope)
+        return election
+    }
+
     private suspend fun keyOf(name: LockName): Long {
         val key = name.advisoryKey(namespace)
         if (currentCoroutineContext()[HeldKeys]?.keys?.contains(key) == true) throw ReentrantLockException(name)
@@ -110,6 +145,8 @@ public class Vojak(
     public companion object {
         /** What `withLock` waits when the caller does not say; bounded, like every wait here. */
         public val DEFAULT_WAIT: Duration = 30.seconds
+
+        private val CANDIDATE = Regex("[A-Za-z0-9._-]{1,63}")
     }
 }
 

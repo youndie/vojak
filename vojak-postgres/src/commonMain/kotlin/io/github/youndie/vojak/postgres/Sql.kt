@@ -20,6 +20,11 @@ internal suspend fun QueryExecutor.text(sql: String): String =
         .get(0)
         .asString()
 
+/** A statement whose result is not read — `SET LOCAL` and the like. Same single exit as [text]. */
+internal suspend fun QueryExecutor.run(sql: String) {
+    execute(sql).getOrThrow()
+}
+
 /**
  * Ends [tx] after [failure] was thrown by a statement on it — or leaves it alone, when ending it
  * would end the process.
