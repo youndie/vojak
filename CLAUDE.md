@@ -3,10 +3,10 @@
 Leader election and a distributed lock for Kotlin services on Postgres advisory locks.
 **Native-first** — `linuxX64` decides the design, `jvm` follows, `linuxArm64` is compiled.
 
-**The lock and the election are built; `whileLeader`, the epoch and `vojak-kore` are not.**
-`vojak-core` has names, keys, the lock API and `Election`; `vojak-postgres` the lock store and the
-lease; `whileLeader`, the fencing epoch and `vojak-kore` are still paths where code *will* live
-(B-07 onwards). `samples/probe/` is the B-01 probe — a separate Gradle build outside any gate.
+**The lock, the election and `whileLeader` are built; the epoch and `vojak-kore` are not.**
+`vojak-core` has names, keys, the lock API, `Election` and its `whileLeader` block; `vojak-postgres`
+the lock store and the lease; the fencing epoch, the wait-out of B-15 and `vojak-kore` are still paths
+where code *will* live. `samples/probe/` is the B-01 probe — a separate Gradle build outside any gate.
 `backlog.md` and the build are what say how far things have got; a sentence here about the state of
 the project has no way to fail, so prefer them.
 
