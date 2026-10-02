@@ -260,6 +260,38 @@ How it was found is worth keeping: the JVM and native suites run in parallel aga
 and with the same candidate names in both, one suite's "end the leader's session" ended the other
 suite's leader — `ofTwoReplicasExactlyOneLeads` then failed with "two leaders at once".
 
+### 1.7 The fault suite — real binaries, real faults (B-09, 2026-10-02)
+
+`samples/two-replicas/fault-suite.sh`: two native replicas (`linuxX64`, driver `1.13.1.1-yio`), one
+Postgres 18, a socat proxy per replica; timing `serverLease` 4 s, `localLease` 2 s, `renewEvery`
+500 ms, `pollEvery` 200 ms. `oracle.py` lays every `whileLeader` block on `CLOCK_MONOTONIC` and counts
+overlaps. Times are from the fault, over the runs made on that day:
+
+| Scenario | Runs | Overlaps | Old leader down after | Next leader after |
+|---|---|---|---|---|
+| `kill` — SIGKILL of the leader | 7 | 0 | at the kill | 2.17–2.22 s |
+| `partition` — the leader's proxy paused | 12 | 0 | 1.94–1.96 s | 6.03–6.09 s, **once 4.64 s** |
+| `restart` — Postgres restarted | 6 | 0 | 0.44–0.45 s | 3.2–3.4 s |
+| `terminate` — only the leader's session ended | 3 | 0 | 0.44–0.45 s | 2.17–2.18 s |
+| `freeze` — SIGSTOP past the server lease (control) | 7 | **1 each** | 8.0 s (on SIGCONT) | 4.6–6.1 s |
+
+**Consequence 15.** Every number lands where D2, D6 and D12 put it: the partitioned leader steps down
+at `localLease` after its last renewal, the server ends its session at `serverLease`, the successor
+waits `localLease` more; after a kill or an ended session the successor polls once and waits. The
+freeze control overlaps every time, which is the oracle shown able to see one — and the stated limit
+of D9 shown real: a process paused past the margin wakes up still believing, and only the epoch
+protects a store from it.
+
+**Consequence 16.** The suite also catches the defect it was built for: with the D12 wait removed,
+`terminate` overlaps in 3 runs of 3 (the successor led at ~175 ms, the old leader still held its
+block until ~450 ms). `kill`, `partition` and `restart` would not have noticed — in each the old
+leader is down before anybody can take the lock.
+
+**Open (B-16).** One `partition` run of twelve had the successor leading at 4.64 s, earlier than the
+~5.5 s floor of "server lease, then `localLease`". No overlap in it — the old leader had stepped down
+at 1.96 s — but the arithmetic says either the wait was skipped or the session ended early, and
+neither is explained. Its logs were overwritten by the next run; the suite now keeps every run's.
+
 ---
 
 ## 2. Decisions
