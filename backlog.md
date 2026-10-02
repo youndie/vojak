@@ -42,7 +42,7 @@ layer, so re-prioritising an item must never move its file.
 
 | Task | | Priority | Size | Blocked by |
 |---|---|---|---|---|
-| [B-07](docs/backlog/B-07-while-leader.md) `[ ]` | whileLeader runs the singleton's loop and cancels it before leadership is observably lost | P1 | M | B-06 |
+| [B-07](docs/backlog/B-07-while-leader.md) `[~]` | whileLeader runs the singleton's loop and cancels it before leadership is observably lost | P1 | M | B-06 |
 | [B-08](docs/backlog/B-08-fencing-epoch.md) `[ ]` | Each leadership gets the next epoch, so a store can reject a stale leader | P1 | S | B-06 |
 | [B-09](docs/backlog/B-09-fault-suite.md) `[ ]` | Fault suite: kill, partition and restart, judged by an overlap oracle that is shown to fail | P1 | L | B-07, B-08, B-13, B-15 |
 | [B-15](docs/backlog/B-15-wait-out-the-previous-leader.md) `[ ]` | A new leader waits until the previous one must have stepped down, unless it let go cleanly | P1 | M | B-08 |

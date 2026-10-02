@@ -1,7 +1,7 @@
 ---
 id: B-07
 title: "whileLeader runs the singleton's loop and cancels it before leadership is observably lost"
-status: open
+status: wip
 priority: P1
 size: M
 stage: stage-2-election
