@@ -1,7 +1,7 @@
 ---
 id: B-11
 title: "Reference consumer: two replicas, one singleton, a store that rejects a stale epoch"
-status: open
+status: wip
 priority: P2
 size: M
 stage: stage-3-adoption
