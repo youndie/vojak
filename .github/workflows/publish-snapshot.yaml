@@ -1,0 +1,64 @@
+# Every push to main publishes 0.1.0.<run> to the portfolio's reposilite (`/snapshots`), with this
+# repository's own token: REPOSILITE_USER / REPOSILITE_SECRET, put here by the owner's
+# `reposilite-token` workflow in the infra repository, scoped to the group's directory. Maven Central
+# is B-12's, later.
+#
+# The suite runs again before publishing, although `check` runs it on the same commit: a publish must
+# not depend on another workflow having finished green first, and the two start at the same time. The
+# suite needs Postgres and never skips without it, so the Makefile starts it, as it does for `build`.
+name: publish snapshot
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: publish-snapshot
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    outputs:
+      version: ${{ steps.ver.outputs.version }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - uses: actions/cache@v4
+        with:
+          path: ~/.konan
+          key: konan-${{ runner.os }}-${{ hashFiles('gradle/libs.versions.toml', 'settings.gradle.kts') }}
+
+      - name: Determine version
+        id: ver
+        uses: youndie/sborka/.github/actions/determine-version@main
+
+      - name: Test and publish
+        run: make build GRADLEFLAGS="--no-daemon publishAllPublicationsToWipRepository"
+        env:
+          ORG_GRADLE_PROJECT_REPOSILITE_USER: ${{ secrets.REPOSILITE_USER }}
+          ORG_GRADLE_PROJECT_REPOSILITE_SECRET: ${{ secrets.REPOSILITE_SECRET }}
+          ORG_GRADLE_PROJECT_VERSION: ${{ steps.ver.outputs.version }}
+
+  # MERGED IS NOT RELEASED: the proof is a consumer resolving what was published, from the server.
+  consumer:
+    needs: publish
+    runs-on: ubuntu-latest
+    steps:
+      - name: What a consumer gets
+        uses: youndie/proba@main
+        with:
+          coordinate: |
+            io.github.youndie.vojak:vojak-core:${{ needs.publish.outputs.version }}
+            io.github.youndie.vojak:vojak-postgres:${{ needs.publish.outputs.version }}
+            io.github.youndie.vojak:vojak-kore:${{ needs.publish.outputs.version }}
+          repository: https://reposilite.kotlin.website/snapshots
