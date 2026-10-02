@@ -6,8 +6,8 @@ Leader election and a distributed lock for Kotlin services on Postgres advisory 
 **The library is built: the lock, the election with `whileLeader`, the epoch, the wait-out of D12 and
 the kore participant.** `vojak-core`, `vojak-postgres` (epoch table `<prefix>_epoch`, created on first
 election), `vojak-kore` (Java 25 on the JVM — kore needs it, research §1.4). What is left is the
-reference sample and the release. `samples/probe/` is the B-01 probe, `samples/two-replicas/` the
-fault suite. `backlog.md` and the build are what say how far things have got; a sentence here about
+release. `samples/probe/` is the B-01 probe, `samples/two-replicas/` the fault suite,
+`samples/digest-sender/` the reference consumer and its stale-write stand (B-11). `backlog.md` and the build are what say how far things have got; a sentence here about
 the state of the project has no way to fail, so prefer them.
 
 ## How to start a session
@@ -42,9 +42,10 @@ the Mac:
 cd samples/probe && ~/.claude/bin/wsl-run ./run.sh          # the B-01 probe, both targets
 CHECKS=N1 ~/.claude/bin/wsl-run ./run.sh                    # one check
 cd samples/two-replicas && ~/.claude/bin/wsl-run ./fault-suite.sh   # B-09: kill/partition/restart/terminate/freeze
+cd samples/digest-sender && ~/.claude/bin/wsl-run ./stale-write.sh   # B-11: the stale write, guarded and the control
 ```
 
-The fault suite is not in `make build`: it needs Docker, two native processes and ~2 minutes per
+The fault suite and the stale-write stand are not in `make build`: it needs Docker, two native processes and ~2 minutes per
 round. `RUNS=n` repeats, `ONLY="terminate partition"` picks scenarios; every invocation keeps its logs
 under `samples/two-replicas/build/faults/<timestamp>/` on the Linux side.
 

@@ -39,6 +39,10 @@ include(":vojak-kore")
 // application, so it brings the one driver — the patched build, from the portfolio's reposilite.
 include(":samples:two-replicas")
 
+// The reference consumer (B-11): what a service author copies — Ktor CIO, kore, a `whileLeader`
+// poller and a table whose writes carry the epoch. Also the stand of the stale-write check.
+include(":samples:digest-sender")
+
 dependencyResolutionManagement {
     repositories {
         // Only the fork's `-yio` builds of sqlx4k-postgres come from here (research §1.5, B-13).

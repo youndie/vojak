@@ -9,6 +9,9 @@ sqlx4k = "1.13.1"
 # Not on Maven Central (research §1.4); resolved from the portfolio's reposilite through the
 # settings plugin's `io.github.youndie` filter.
 kore = "0.1.12"
+# The reference sample only (B-11). The version kore-ktor 0.1.12 itself depends on, through `api`:
+# a different Ktor here would compile and fail to link at run time.
+ktor = "3.6.0"
 
 [libraries]
 kotlinx-coroutines-core = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-core", version.ref = "kotlinx-coroutines" }
@@ -24,6 +27,8 @@ sqlx4k-postgres = { module = "io.github.smyrgeorge:sqlx4k-postgres", version.ref
 sqlx4k-postgres-yio = { module = "io.github.smyrgeorge:sqlx4k-postgres", version = "1.13.1.1-yio" }
 
 kore-core = { module = "io.github.youndie:kore-core", version.ref = "kore" }
+kore-ktor = { module = "io.github.youndie:kore-ktor", version.ref = "kore" }
+ktor-server-cio = { module = "io.ktor:ktor-server-cio", version.ref = "ktor" }
 
 [plugins]
 sborkaKmp = { id = "io.github.youndie.sborka.kmp", version.ref = "sborka" }
