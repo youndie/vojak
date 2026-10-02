@@ -31,6 +31,9 @@ def main():
     ap.add_argument("--events", required=True)
     ap.add_argument("--expect", choices=["none", "overlap"], required=True)
     ap.add_argument("--max-takeover-ms", type=float, default=None)
+    # A takeover earlier than the lease arithmetic allows is not an overlap, but it says the wait was
+    # skipped or the session ended early (B-16) — either way something the design did not predict.
+    ap.add_argument("--min-takeover-ms", type=float, default=None)
     ap.add_argument("logs", nargs="+")
     a = ap.parse_args()
 
@@ -98,6 +101,8 @@ def main():
             problems.append("the other replica led before the old leader stepped down")
         if a.max_takeover_ms is not None and new_up is not None and ms(new_up) > a.max_takeover_ms:
             problems.append(f"takeover after {ms(new_up)} ms, bound {a.max_takeover_ms}")
+        if a.min_takeover_ms is not None and new_up is not None and ms(new_up) < a.min_takeover_ms:
+            problems.append(f"takeover after {ms(new_up)} ms, earlier than the floor {a.min_takeover_ms}")
     verdict = "PASS" if not problems else "FAIL " + "; ".join(problems)
     print(f"VERDICT {a.scenario} {verdict} spans={len(spans)} overlaps={len(overlaps)}")
     sys.exit(0 if not problems else 1)

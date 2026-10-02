@@ -54,7 +54,7 @@ mkdir -p "$OUT"; echo "logs: $OUT"
 failures=0
 
 scenario() {
-  local name=$1 run=$2 expect=$3 bound=${4:-}
+  local name=$1 run=$2 expect=$3 bound=${4:-} floor=${5:-}
   local tag="$name-$run" ev="$OUT/$name-$run.events"
   docker exec "$PG" psql -U postgres -qtAc "drop table if exists vojak_epoch" >/dev/null
   "$BIN" postgresql://127.0.0.1:55461/postgres a $TIMING >"$OUT/$tag-a.log" 2>&1 & local pa=$!
@@ -70,9 +70,11 @@ scenario() {
   local pid=$pa px=$PXA; [ "$who" = b ] && pid=$pb px=$PXB
   # The server's side, on the same clock: who holds the singleton's advisory lock (by
   # application_name), how long each vojak session has been idle, and the epoch row. Read by a person
-  # when a timing needs explaining; the oracle does not use it.
+  # when a timing needs explaining; the oracle does not use it. Stamped when the query starts and again
+  # when its answer is back: on a loaded box one `docker exec` took ~10 s (B-16), and one stamp then
+  # names the wrong moment.
   ( while :; do
-      echo "$(now) $(docker exec "$PG" psql -U postgres -qtAc "select coalesce(string_agg(a.application_name || '@' || a.state || ':' || coalesce(extract(epoch from now() - a.state_change)::int::text, '?'), ' '), '-') || ' | lock=' || coalesce((select string_agg(x.application_name, ',') from pg_locks l join pg_stat_activity x on x.pid = l.pid where l.locktype = 'advisory' and l.granted and l.objsubid = 1), '-') || ' | epoch=' || coalesce((select epoch || '/' || released from vojak_epoch limit 1), '-') from pg_stat_activity a where a.application_name like 'vojak %'" 2>/dev/null)"
+      t0=$(now); s=$(docker exec "$PG" psql -U postgres -qtAc "select coalesce(string_agg(a.application_name || '@' || a.state || ':' || coalesce(extract(epoch from now() - a.state_change)::int::text, '?'), ' '), '-') || ' | lock=' || coalesce((select string_agg(x.application_name, ',') from pg_locks l join pg_stat_activity x on x.pid = l.pid where l.locktype = 'advisory' and l.granted and l.objsubid = 1), '-') || ' | epoch=' || coalesce((select epoch || '/' || released from vojak_epoch limit 1), '-') from pg_stat_activity a where a.application_name like 'vojak %'" 2>/dev/null); echo "$t0 $s | answered=$(now)"
       sleep 0.05
     done ) >"$OUT/$tag-server.log" 2>&1 &
   local obs=$!
@@ -99,7 +101,7 @@ scenario() {
   kill -KILL $pa $pb 2>/dev/null; wait $pa $pb 2>/dev/null
   echo "END $(now)" >>"$ev"
   kill $obs 2>/dev/null; wait $obs 2>/dev/null
-  python3 oracle.py --scenario "$tag" --events "$ev" --expect "$expect" ${bound:+--max-takeover-ms "$bound"} \
+  python3 oracle.py --scenario "$tag" --events "$ev" --expect "$expect" ${bound:+--max-takeover-ms "$bound"} ${floor:+--min-takeover-ms "$floor"} \
     "$OUT/$tag-a.log" "$OUT/$tag-b.log" || failures=$((failures + 1))
 }
 
@@ -112,8 +114,10 @@ for run in $(seq "$RUNS"); do
   # A clean release: the other replica polls once and does not wait (research D12).
   want term && scenario term "$run" none $((POLL + 1000))
   # After a partition the server ends the session at serverLease since the last renewal; then the
-  # same wait. The old leader is down by localLease since its last renewal, long before.
-  want partition && scenario partition "$run" none $((SERVER + LOCAL + POLL + 1000))
+  # same wait. The old leader is down by localLease since its last renewal, long before. The floor:
+  # the last renewal reached the server at most renewEvery before the fault, so the session cannot
+  # end before SERVER - RENEW after it, and the wait adds LOCAL (B-16).
+  want partition && scenario partition "$run" none $((SERVER + LOCAL + POLL + 1000)) $((SERVER - RENEW + LOCAL))
   want restart && scenario restart "$run" none 30000
   # The other replica takes the freed lock at its next poll and waits localLease (D12).
   want terminate && scenario terminate "$run" none $((LOCAL + POLL + 1000))

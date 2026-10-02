@@ -295,10 +295,29 @@ protects a store from it.
 block until ~450 ms). `kill`, `partition` and `restart` would not have noticed — in each the old
 leader is down before anybody can take the lock.
 
-**Open (B-16).** One `partition` run of twelve had the successor leading at 4.64 s, earlier than the
-~5.5 s floor of "server lease, then `localLease`". No overlap in it — the old leader had stepped down
-at 1.96 s — but the arithmetic says either the wait was skipped or the session ended early, and
-neither is explained. Its logs were overwritten by the next run; the suite now keeps every run's.
+**The early takeover did not recur (B-16).** One `partition` run of twelve had the successor leading
+at 4.64 s. The floor is ~5.5 s: the server lease minus one renewal interval, then `localLease`. The
+run had no overlap (the old leader had stepped down at 1.96 s), and its logs were overwritten.
+On 2026-10-02 the oracle was given that floor, so an early takeover now fails the suite with its logs
+kept. **`RUNS=50 ONLY=partition`: no recurrence.** Takeovers ranged from 5.98 to 6.30 s, apart from
+one run described below. Two of the explanations were checked, and both were refuted:
+
+- **A wall-clock jump.** On 2026-09-25 this box's `CLOCK_REALTIME` jumped +2.93 s every ~32 s.
+  Postgres schedules its timeouts by the wall clock, so a jump could end a lease early. Today there is
+  no jump in 90 s, and `samples/two-replicas/lease-clock.py` timed the lease at 4.00–4.01 s on
+  `CLOCK_MONOTONIC` in 40 of 40 trials. The box was rebooted on 2026-09-30, so the jumps were gone
+  before the 4.64 s run.
+- **The wait skipped.** The `released` mark is written only inside the holding transaction, just
+  before it commits (D12). A partitioned leader cannot commit. The overlap test from research §1.6
+  fails if the mark is missing or ignored.
+
+The single number stays unexplained. Since it can no longer pass unnoticed, it is closed as such.
+
+**A late takeover is a stand artefact.** One of the 50 runs took over at 10.86 s, above the 7.2 s
+bound. At the same moment a CI job and another build were running on the box. One `docker exec` of
+the observer took ~10 s, and the follower's pool failed with `PoolTimedOut`. The run had no overlap.
+It shows that liveness depends on the host, while safety does not. The observer now stamps each
+sample both when the query starts and when the answer comes back.
 
 ### 1.8 The stale write — the reference consumer under a partition (B-11, 2026-10-02)
 
