@@ -21,6 +21,8 @@ import kotlin.concurrent.Volatile
 internal class PostgresLease(
     private val tx: Transaction,
     override val epoch: Long,
+    override val previousReleasedCleanly: Boolean,
+    private val markReleased: String,
 ) : Lease {
     private val inUse = Mutex()
 
@@ -57,7 +59,21 @@ internal class PostgresLease(
             // failed statement on a dead connection aborts the process with the released driver
             // (research Consequence 12) — `endAfterFailure` knows when not to call it.
             val failed = failure
-            if (failed != null) tx.endAfterFailure(failed) else tx.release()
+            if (failed != null) {
+                tx.endAfterFailure(failed)
+                return
+            }
+            // A release vojak makes is made after the state left Leader, so it may say so: the mark
+            // commits with the end of the lock, and the successor skips the wait of research D12.
+            // If either fails, the store has ended the lease already and the mark simply is not there
+            // — the successor waits, which is the safe side.
+            try {
+                tx.run(markReleased)
+                tx.commit().getOrThrow()
+            } catch (thrown: Throwable) {
+                if (thrown is CancellationException) throw thrown
+                tx.endAfterFailure(thrown)
+            }
         } finally {
             inUse.unlock()
         }

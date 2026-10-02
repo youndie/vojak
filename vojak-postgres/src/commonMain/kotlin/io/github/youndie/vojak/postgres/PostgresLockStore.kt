@@ -91,7 +91,7 @@ public class PostgresLockStore(
             tx.release()?.let { throw it }
             return null
         }
-        val epoch =
+        val next =
             try {
                 tx.run("set local idle_in_transaction_session_timeout = '${lease.inWholeMilliseconds}ms'")
                 tx.run("set local application_name = 'vojak $holder'")
@@ -101,7 +101,7 @@ public class PostgresLockStore(
                 tx.endAfterFailure(failure)
                 throw failure
             }
-        return PostgresLease(tx, epoch)
+        return PostgresLease(tx, next.epoch, next.previousReleasedCleanly, epochs.markReleased(key, next.epoch))
     }
 
     private companion object {

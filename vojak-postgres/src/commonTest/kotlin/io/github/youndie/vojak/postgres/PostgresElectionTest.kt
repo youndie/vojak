@@ -146,7 +146,9 @@ class PostgresElectionTest {
             leader.close()
 
             assertNotNull(awaitLeader(listOf(other), 3.seconds), "no handover within 3 s")
-            assertTrue(closed.elapsedNow() < 3.seconds)
+            // Faster than `localLease`: the close marked the epoch released, so the successor skipped
+            // the wait of research D12. A missing mark would cost exactly that wait.
+            assertTrue(closed.elapsedNow() < timing.localLease, "handover took ${closed.elapsedNow()}")
         }
 
     /**
@@ -200,5 +202,33 @@ class PostgresElectionTest {
             vojak.campaign(podA, scope)
 
             assertFailsWith<DuplicateElectionException> { vojak.elect(sender, podA, scope, timing) }
+        }
+
+    /**
+     * Research §1.6 as a test: the server ends the leader's session, both flows are sampled every
+     * 2 ms, and no instant has two leaders. Before D12 every measured round overlapped.
+     */
+    @Test
+    fun whenTheServerEndsTheLeadersSessionNobodyElseLeadsBeforeItHasSteppedDown() =
+        realTime {
+            val scope = CoroutineScope(coroutineContext + kotlinx.coroutines.SupervisorJob())
+            val a = replica().campaign(podA, scope)
+            val b = replica().campaign(podB, scope)
+            scope.record("a", a)
+            scope.record("b", b)
+            val db = observer()
+            val leader = assertNotNull(awaitLeader(listOf(a, b), 10.seconds))
+            val other = if (leader === a) b else a
+            val candidate = if (leader === a) podA else podB
+            val pid = db.text("select pid::text from pg_stat_activity where application_name = 'vojak $candidate'")
+
+            db.text("select pg_terminate_backend($pid)::text")
+            val watch = TimeSource.Monotonic.markNow()
+            while (watch.elapsedNow() < timing.localLease + 2.seconds) {
+                val both = leader.leadership.value is Leadership.Leader && other.leadership.value is Leadership.Leader
+                assertTrue(!both, "two leaders at once:${timelineText()}")
+                delay(2.milliseconds)
+            }
+            assertNotNull(awaitLeader(listOf(a, b), 5.seconds), "nobody led again:${timelineText()}")
         }
 }

@@ -30,6 +30,15 @@ class FakeLockStore(
 
     val leases = mutableMapOf<Long, FakeLease>()
     private val epochs = mutableMapOf<Long, Long>()
+    private val cleanlyReleased = mutableMapOf<Long, Boolean>()
+
+    /**
+     * What a server-ended session looks like: the key is free at once, the holder's next renewal
+     * fails, and nothing records a clean release.
+     */
+    fun endSessionOf(key: Long) {
+        leases.remove(key)?.ended = true
+    }
 
     /** What every renewal does; replace it to make renewals fail or hang. */
     var renewal: suspend () -> Unit = {}
@@ -42,24 +51,32 @@ class FakeLockStore(
         if (key in heldElsewhere || key in held || key in leases) return null
         val epoch = (epochs[key] ?: 0L) + 1
         epochs[key] = epoch
-        return FakeLease(key, epoch).also { leases[key] = it }
+        return FakeLease(key, epoch, cleanlyReleased[key] ?: true).also {
+            leases[key] = it
+            cleanlyReleased[key] = false
+        }
     }
 
     inner class FakeLease(
         private val key: Long,
         override val epoch: Long,
+        override val previousReleasedCleanly: Boolean,
     ) : Lease {
         var renewals = 0
         var released = false
+        var ended = false
 
         override suspend fun renew() {
+            check(!ended) { "the session was ended" }
             renewal()
             renewals++
         }
 
         override suspend fun release() {
             released = true
+            if (ended) return
             leases.remove(key)
+            cleanlyReleased[key] = true
         }
     }
 }

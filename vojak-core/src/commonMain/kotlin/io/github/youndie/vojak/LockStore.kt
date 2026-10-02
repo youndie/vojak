@@ -46,6 +46,14 @@ public interface Lease {
     public val epoch: Long
 
     /**
+     * Whether the previous lease of this key was given up by its holder — through [release] — rather
+     * than ended by the store (a restart, a failover, a terminated session, an expired lease). `true`
+     * for the first lease of a key. When `false`, the previous holder may still believe it holds the
+     * key until its next renewal, and the new holder has to wait that out (research D12).
+     */
+    public val previousReleasedCleanly: Boolean
+
+    /**
      * Proves the lease is still held and restarts the store's countdown.
      *
      * @throws Throwable when it is not held any more — the caller must stop acting as the holder.
@@ -53,8 +61,10 @@ public interface Lease {
     public suspend fun renew()
 
     /**
-     * Gives the lease up. Never throws: a release that fails means the store has already ended the
-     * lease, which is the outcome asked for. May return before the store has let go when a [renew]
+     * Gives the lease up, and records that it was given up cleanly when it can — the next holder then
+     * skips the wait of D12. Called only after the holder has stopped calling itself leader. Never
+     * throws: a release that fails means the store has already ended the lease, which is the outcome
+     * asked for. May return before the store has let go when a [renew]
      * is still in flight; it then completes when that call returns.
      */
     public suspend fun release()
