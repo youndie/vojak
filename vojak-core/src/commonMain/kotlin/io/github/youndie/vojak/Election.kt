@@ -39,6 +39,8 @@ public class Election internal constructor(
     private val timing: ElectionTiming,
     private val timeSource: TimeSource,
     private val onStoreFailure: (Throwable) -> Unit,
+    private val work: (suspend CoroutineScope.() -> Unit)?,
+    private val onWorkFailure: (Throwable) -> Unit,
     private val onClosed: suspend () -> Unit,
 ) {
     private val state = MutableStateFlow<Leadership>(Leadership.Follower)
@@ -53,13 +55,14 @@ public class Election internal constructor(
     }
 
     /**
-     * Stops campaigning, gives the lease up if held, and leaves [leadership] at
-     * [Leadership.Closed]. Returns within `localLease` even if a store call is stuck: the campaign
-     * is cancelled and waited for no longer than that, and the release completes on its own.
+     * Stops campaigning, cancels the `whileLeader` block and waits for it, gives the lease up if
+     * held, and leaves [leadership] at [Leadership.Closed]. Returns within `serverLease` even if a
+     * store call or the block is stuck: the campaign is waited for no longer than that, and the
+     * release completes on its own.
      */
     public suspend fun close() {
         if (state.value == Leadership.Closed) return
-        withTimeoutOrNull(timing.localLease) { campaign.cancelAndJoin() } ?: campaign.cancel()
+        withTimeoutOrNull(timing.serverLease) { campaign.cancelAndJoin() } ?: campaign.cancel()
         state.value = Leadership.Closed
         onClosed()
     }
@@ -87,24 +90,30 @@ public class Election internal constructor(
                 if (state.value == Leadership.Leader) state.value = Leadership.Follower
                 withContext(NonCancellable) { lease.release() }
             }
-            // A poll's pause before campaigning again: without it a process that just lost the lease
-            // is the first to ask for it back, every time — flapping, and the other replicas never
-            // get a turn after a failure that was this one's.
-            delay(timing.pollEvery)
+            // Two polls' pause before campaigning again: without it a process that just lost the lease
+            // is the first to ask for it back, every time — flapping, and the other replicas never get
+            // a turn after a failure that was this one's. Two, not one: every other replica polls at
+            // least once in that window, so the turn is theirs rather than a race (research D10).
+            delay(timing.pollEvery * 2)
         }
     }
 
     /**
-     * Returns when the lease is lost: a renewal failed, or `localLease` passed since the last one
-     * that succeeded. The renewals run **outside** this coroutine's structure — a native store call
-     * cannot be cancelled (research §1.5), and a child stuck in one would keep this function from
-     * returning, which is exactly the step-down that must not wait for it.
+     * Runs the `whileLeader` block and returns when the lease is lost: a renewal failed, the block
+     * threw, or `localLease` passed since the last renewal that succeeded.
+     *
+     * Renewals and the block run **outside** this coroutine's structure. A native store call cannot be
+     * cancelled (research §1.5), and a child stuck in one would keep this function from returning,
+     * which is exactly the step-down that must not wait for it. The block is the one thing that *is*
+     * waited for — its cancellation completes before [leadership] leaves [Leadership.Leader] — but
+     * only within the lease margin: past `serverLease` the server has ended the lease and waiting
+     * longer would only make the state lie.
      */
     private suspend fun holdUntilLost(lease: Lease) {
         val renewed = LastRenewal(timeSource.markNow())
-        val failed = CompletableDeferred<Unit>()
-        val renewals = CoroutineScope(currentCoroutineContext() + Job())
-        renewals.launch {
+        val lost = CompletableDeferred<Unit>()
+        val detached = CoroutineScope(currentCoroutineContext() + Job())
+        detached.launch {
             while (true) {
                 delay(timing.renewEvery)
                 try {
@@ -114,19 +123,38 @@ public class Election internal constructor(
                     throw cancelled
                 } catch (failure: Throwable) {
                     onStoreFailure(failure)
-                    failed.complete(Unit)
+                    lost.complete(Unit)
                     return@launch
                 }
             }
         }
+        val running =
+            work?.let { block ->
+                detached.launch {
+                    try {
+                        block()
+                    } catch (cancelled: CancellationException) {
+                        throw cancelled
+                    } catch (failure: Throwable) {
+                        onWorkFailure(failure)
+                        lost.complete(Unit)
+                    }
+                }
+            }
         try {
             while (true) {
                 val left = timing.localLease - renewed.at.elapsedNow()
-                if (!left.isPositive() || failed.isCompleted) return
-                withTimeoutOrNull(left) { failed.await() }
+                if (!left.isPositive() || lost.isCompleted) return
+                withTimeoutOrNull(left) { lost.await() }
             }
         } finally {
-            renewals.cancel()
+            detached.cancel()
+            if (running != null) {
+                withContext(NonCancellable) {
+                    withTimeoutOrNull(timing.serverLease - timing.localLease) { running.join() }
+                        ?: onWorkFailure(LeaderWorkDidNotStopException(name))
+                }
+            }
         }
     }
 

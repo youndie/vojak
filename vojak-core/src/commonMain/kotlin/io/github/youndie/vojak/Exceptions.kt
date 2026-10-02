@@ -38,3 +38,13 @@ public class LockLostException(
 public class DuplicateElectionException(
     public val name: LockName,
 ) : IllegalStateException("an election for '$name' is already open on this Vojak; close it before opening another")
+
+/**
+ * The `whileLeader` block for [name] was cancelled when leadership was lost and had not finished
+ * within the lease margin (`serverLease − localLease`). [Election.leadership] has moved on regardless:
+ * past that point the server has ended the lease and another process may lead, so a block still
+ * running is running beside it. vojak cannot stop code that ignores cancellation; this names it.
+ */
+public class LeaderWorkDidNotStopException(
+    public val name: LockName,
+) : IllegalStateException("the whileLeader block for '$name' ignored cancellation past the lease margin")

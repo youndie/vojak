@@ -108,6 +108,13 @@ public class Vojak(
      * @param onStoreFailure every failure of the store while campaigning or renewing — for the
      *   service's log. [Election.leadership] already reflects each one (a failed attempt leaves this
      *   process a follower, a failed renewal steps it down); this is where it gets a name.
+     * @param onWorkFailure what [whileLeader] threw (the process has stepped down and will campaign
+     *   again after a poll), or [LeaderWorkDidNotStopException] when it ignored cancellation.
+     * @param whileLeader the singleton's work. **State it keeps in memory is lost on handover** —
+     *   keep what must survive in the database. It starts each time this process becomes leader,
+     *   after [Election.leadership] reads [Leadership.Leader]; when leadership is lost it is cancelled
+     *   and its cancellation has completed before [Election.leadership] leaves [Leadership.Leader].
+     *   Returning normally keeps the leadership and does not restart it; throwing steps down.
      * @throws DuplicateElectionException when an election for [name] is already open on this [Vojak].
      */
     public suspend fun elect(
@@ -116,12 +123,14 @@ public class Vojak(
         scope: CoroutineScope,
         timing: ElectionTiming = ElectionTiming(),
         onStoreFailure: (Throwable) -> Unit = {},
+        onWorkFailure: (Throwable) -> Unit = {},
+        whileLeader: (suspend CoroutineScope.() -> Unit)? = null,
     ): Election {
         require(CANDIDATE.matches(candidate)) { "a candidate must match [A-Za-z0-9._-]{1,63}, got '$candidate'" }
         val key = name.advisoryKey(namespace)
         electionsLock.withLock { if (!openElections.add(key)) throw DuplicateElectionException(name) }
         val election =
-            Election(name, key, candidate, store, timing, timeSource, onStoreFailure) {
+            Election(name, key, candidate, store, timing, timeSource, onStoreFailure, whileLeader, onWorkFailure) {
                 electionsLock.withLock { openElections.remove(key) }
             }
         election.start(scope)

@@ -82,7 +82,7 @@ class ElectionTest {
         }
 
     @Test
-    fun afterLosingTheLeaseItWaitsAPollBeforeCampaigningAgain() =
+    fun afterLosingTheLeaseItWaitsTwoPollsBeforeCampaigningAgain() =
         runTest {
             val store = FakeLockStore { testScheduler.currentTime }
             val election = vojak(store).elect(sender, "pod-a", backgroundScope, timing)
@@ -91,7 +91,7 @@ class ElectionTest {
             testScheduler.advanceTimeBy(timing.renewEvery.inWholeMilliseconds + 1)
             store.renewal = {}
 
-            testScheduler.advanceTimeBy(timing.pollEvery.inWholeMilliseconds - 2)
+            testScheduler.advanceTimeBy(timing.pollEvery.inWholeMilliseconds * 2 - 2)
             assertEquals(Leadership.Follower, election.leadership.value)
             testScheduler.advanceTimeBy(2)
 

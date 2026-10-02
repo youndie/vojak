@@ -362,12 +362,17 @@ dead, and **not** when the server ends its session — restart, failover, `pg_te
 where the follower leads up to `renewEvery` before the old leader notices. Measured in every round.
 The fix is D12; until it lands, the epoch (B-08) is the only protection against that window.
 
-### D10. A process that lost the lease waits a poll before campaigning again *(found in B-06)*
+### D10. A process that lost the lease waits two polls before campaigning again *(found in B-06, amended in B-07)*
 
 Without the pause the process that just lost the lease is the first to ask for it back, every time
 — flapping, and the other replicas never get a turn after a failure that was this one's. Found on a
 fake store, which releases instantly; Postgres usually hides it (the old session keeps the lock until
 the server lease), but not after a clean failure such as a killed session.
+
+*Amended in B-07:* two polls, not one. With one, a replica whose `whileLeader` block had just thrown
+raced the others for the lease it gave up — its retry and their next poll fall in the same window —
+and "the other replica takes over" held only most of the time. In two polls' time every other
+replica polls at least once.
 
 ### D11. "One election per name per process" is enforced per `Vojak` instance *(deviation from the brief)*
 
