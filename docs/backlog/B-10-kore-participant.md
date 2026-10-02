@@ -1,7 +1,7 @@
 ---
 id: B-10
 title: "vojak-kore: hand leadership over during the drain instead of after the lease"
-status: open
+status: wip
 priority: P2
 size: S
 stage: stage-3-adoption
