@@ -35,5 +35,21 @@ include(":vojak-postgres")
 // One kore shutdown participant. Published only where kore is (research D8).
 include(":vojak-kore")
 
+// The fault suite's replica (B-09): a native binary the suite kills, partitions and freezes. An
+// application, so it brings the one driver — the patched build, from the portfolio's reposilite.
+include(":samples:two-replicas")
+
+dependencyResolutionManagement {
+    repositories {
+        // Only the fork's `-yio` builds of sqlx4k-postgres come from here (research §1.5, B-13).
+        maven("https://reposilite.kotlin.website/snapshots") {
+            name = "sqlx4k-yio"
+            content {
+                includeVersionByRegex("io\\.github\\.smyrgeorge", "sqlx4k-postgres.*", ".*-yio")
+            }
+        }
+    }
+}
+
 // NOT included: samples/probe. It is the B-01 probe — a separate build on purpose, since it has to
 // carry a driver and this build's modules must not.

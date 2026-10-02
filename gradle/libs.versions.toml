@@ -19,6 +19,9 @@ kotlinx-coroutines-test = { group = "org.jetbrains.kotlinx", name = "kotlinx-cor
 sqlx4k-core = { module = "io.github.smyrgeorge:sqlx4k", version.ref = "sqlx4k" }
 # Tests only: something has to open a connection, and a test binary is an application.
 sqlx4k-postgres = { module = "io.github.smyrgeorge:sqlx4k-postgres", version.ref = "sqlx4k" }
+# The fault suite's replica: the fork's build, which reports I/O errors instead of aborting
+# (research §1.5) — a partition that heals would otherwise end the process it is testing.
+sqlx4k-postgres-yio = { module = "io.github.smyrgeorge:sqlx4k-postgres", version = "1.13.1.1-yio" }
 
 kore-core = { module = "io.github.youndie:kore-core", version.ref = "kore" }
 
