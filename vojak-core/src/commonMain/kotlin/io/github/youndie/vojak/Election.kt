@@ -17,6 +17,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.concurrent.Volatile
+import kotlin.time.Duration
 import kotlin.time.TimeMark
 import kotlin.time.TimeSource
 
@@ -84,7 +85,6 @@ public class Election internal constructor(
                 continue
             }
             try {
-                state.value = Leadership.Leader(lease.epoch)
                 holdUntilLost(lease)
             } finally {
                 if (state.value is Leadership.Leader) state.value = Leadership.Follower
@@ -99,8 +99,16 @@ public class Election internal constructor(
     }
 
     /**
-     * Runs the `whileLeader` block and returns when the lease is lost: a renewal failed, the block
-     * threw, or `localLease` passed since the last renewal that succeeded.
+     * Holds the lease: waits out the previous leader if it did not let go cleanly, then reports
+     * [Leadership.Leader] and runs the `whileLeader` block, and returns when the lease is lost — a
+     * renewal failed, the block threw, or `localLease` passed since the last renewal that succeeded.
+     *
+     * **Taking the lock is not proof the previous leader has stopped** (research §1.6): when the
+     * server ends a leader's session the lock is free at once, while that leader keeps believing until
+     * its next renewal fails. So unless [Lease.previousReleasedCleanly], this process holds and renews
+     * the lease for `localLease` — the latest the previous leader can still believe — before it calls
+     * itself leader (research D12). A clean release by vojak is always made after its own state left
+     * [Leadership.Leader], which is what makes skipping the wait safe then.
      *
      * Renewals and the block run **outside** this coroutine's structure. A native store call cannot be
      * cancelled (research §1.5), and a child stuck in one would keep this function from returning,
@@ -128,20 +136,31 @@ public class Election internal constructor(
                 }
             }
         }
-        val running =
-            work?.let { block ->
-                detached.launch {
-                    try {
-                        block(lease.epoch)
-                    } catch (cancelled: CancellationException) {
-                        throw cancelled
-                    } catch (failure: Throwable) {
-                        onWorkFailure(failure)
-                        lost.complete(Unit)
+        var running: Job? = null
+        try {
+            val leadsFrom =
+                timeSource.markNow() + if (lease.previousReleasedCleanly) Duration.ZERO else timing.localLease
+            while (true) {
+                val left = timing.localLease - renewed.at.elapsedNow()
+                if (!left.isPositive() || lost.isCompleted) return
+                val untilLeading = -leadsFrom.elapsedNow()
+                if (!untilLeading.isPositive()) break
+                withTimeoutOrNull(minOf(left, untilLeading)) { lost.await() }
+            }
+            state.value = Leadership.Leader(lease.epoch)
+            running =
+                work?.let { block ->
+                    detached.launch {
+                        try {
+                            block(lease.epoch)
+                        } catch (cancelled: CancellationException) {
+                            throw cancelled
+                        } catch (failure: Throwable) {
+                            onWorkFailure(failure)
+                            lost.complete(Unit)
+                        }
                     }
                 }
-            }
-        try {
             while (true) {
                 val left = timing.localLease - renewed.at.elapsedNow()
                 if (!left.isPositive() || lost.isCompleted) return
@@ -149,9 +168,10 @@ public class Election internal constructor(
             }
         } finally {
             detached.cancel()
-            if (running != null) {
+            val block = running
+            if (block != null) {
                 withContext(NonCancellable) {
-                    withTimeoutOrNull(timing.serverLease - timing.localLease) { running.join() }
+                    withTimeoutOrNull(timing.serverLease - timing.localLease) { block.join() }
                         ?: onWorkFailure(LeaderWorkDidNotStopException(name))
                 }
             }

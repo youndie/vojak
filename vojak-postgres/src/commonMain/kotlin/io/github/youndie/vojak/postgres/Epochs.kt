@@ -29,15 +29,39 @@ internal class Epochs(
 
     @Volatile private var created = false
 
-    /** The next epoch for [key], durable when this returns. */
-    suspend fun next(key: Long): Long {
+    /** One leadership's number, and whether the leadership before it ended by its holder's release. */
+    data class Next(
+        val epoch: Long,
+        val previousReleasedCleanly: Boolean,
+    )
+
+    /**
+     * The next epoch for [key], durable when this returns, with the previous leadership's clean-release
+     * mark (`true` for the first ever). The CTE reads the row as it was before this statement changed it
+     * — every part of one statement sees the same snapshot — so the mark is the predecessor's.
+     */
+    suspend fun next(key: Long): Next {
         ensureTable()
-        return driver
-            .text(
-                "insert into $table (lock_key, epoch) values ($key, 1) " +
-                    "on conflict (lock_key) do update set epoch = $table.epoch + 1 returning epoch::text",
-            ).toLong()
+        val (epoch, clean) =
+            driver
+                .text(
+                    "with prev as (select released from $table where lock_key = $key) " +
+                        "insert into $table (lock_key, epoch, released) values ($key, 1, false) " +
+                        "on conflict (lock_key) do update set epoch = $table.epoch + 1, released = false " +
+                        "returning epoch::text || ' ' || coalesce((select released from prev), true)::text",
+                ).split(' ')
+        return Next(epoch.toLong(), clean == "true")
     }
+
+    /**
+     * The statement that marks [epoch] of [key] released. Run inside the holding transaction, just
+     * before it commits, so the mark and the end of the lock become visible together: a successor
+     * cannot take the lock without seeing the mark.
+     */
+    fun markReleased(
+        key: Long,
+        epoch: Long,
+    ): String = "update $table set released = true where lock_key = $key and epoch = $epoch"
 
     private suspend fun ensureTable() {
         if (created) return
@@ -46,7 +70,12 @@ internal class Epochs(
             val tx = driver.begin().getOrThrow()
             try {
                 tx.text("select pg_advisory_xact_lock($CREATION_KEY)::text")
-                tx.run("create table if not exists $table (lock_key bigint primary key, epoch bigint not null)")
+                tx.run(
+                    "create table if not exists $table " +
+                        "(lock_key bigint primary key, epoch bigint not null, released boolean not null default false)",
+                )
+                // Tables created before the mark existed (B-08) get it here.
+                tx.run("alter table $table add column if not exists released boolean not null default false")
             } catch (failure: Throwable) {
                 tx.endAfterFailure(failure)
                 throw failure
