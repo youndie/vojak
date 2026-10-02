@@ -300,6 +300,35 @@ leader is down before anybody can take the lock.
 at 1.96 s — but the arithmetic says either the wait was skipped or the session ended early, and
 neither is explained. Its logs were overwritten by the next run; the suite now keeps every run's.
 
+### 1.8 The stale write — the reference consumer under a partition (B-11, 2026-10-02)
+
+`samples/digest-sender/stale-write.sh`: two replicas of the reference consumer (Ktor CIO, kore,
+driver `1.13.1.1-yio`, pool of 4 with sqlx's default acquire timeout), the stand of §1.7 and its
+timing. The leader claims a digest every 300 ms with one statement, `update digest_state set
+last_sent = last_sent + 1, epoch = <e> where id = 1 and epoch <= <e>`. Its proxy is paused for 10 s
+and resumed. The verdict is read from the server: Postgres logs every statement it ran
+(`log_min_duration_statement = 0`), and a row trigger copies every changed row into an audit table.
+
+| Run | Stale claim ran | Its distance after the successor's first claim | Changed a row |
+|---|---|---|---|
+| guarded, 2 runs | yes, 10.2 s after the leader's previous claim | 4.03–4.08 s | **no** |
+| unguarded (the control), 2 runs | yes, 10.3 s after | 4.10–4.11 s | **yes** — and the old leader sent digest 19 |
+
+**Consequence 17. On linuxX64 a statement does not stop when its coroutine is cancelled.** The old
+leader stepped down on time, and its `whileLeader` block was cancelled; the claim it was parked in
+did not return until the network healed, so the block overran the lease margin in all four runs
+(`LeaderWorkDidNotStopException`, reported through `onWorkFailure`), then the statement ran on the
+server ten seconds late. A guarded run's old leader even logged the refusal it got back. So
+cancellation bounds what a block *starts*, never what it has already handed to the driver. A
+partition is enough to produce the stale write that D5 exists for — no paused process is needed.
+
+**Consequence 18. A short acquire timeout hides the case without closing it.** With
+`acquireTimeout` at 2 s, the first version of the stand never produced a stale claim. The pool's
+check of a connection before it hands it out was stuck in the paused proxy, and the acquire failed
+(`PoolTimedOut`) before the statement was sent. A partition that begins after that check and before
+the reply still delivers the statement late. The epoch in the `WHERE` is the defence. A timeout is
+not.
+
 ---
 
 ## 2. Decisions
