@@ -16,6 +16,7 @@ kotlin {
     sourceSets {
         linuxX64Main.dependencies {
             implementation(project(":vojak-postgres"))
+            implementation(project(":vojak-kore"))
             implementation(libs.sqlx4k.postgres.yio)
         }
     }

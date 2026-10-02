@@ -5,6 +5,8 @@
 #   kill       SIGKILL of the leader — its socket closes, the server ends the session at once
 #   partition  `docker pause` of the leader's proxy — the connection stays open and nothing arrives
 #   restart    `docker restart` of Postgres — every session ends
+#   term       SIGTERM to the leader — kore's shutdown closes the election and releases cleanly, so the
+#              other replica leads within a poll, without the wait (B-10); the leader must exit in time
 #   terminate  `pg_terminate_backend` of the leader's session only — the lock is free at once while
 #              the leader still believes (research §1.6); the case D12 exists for
 #   freeze     SIGSTOP of the leader for longer than the server lease, then SIGCONT — THE CONTROL:
@@ -79,6 +81,12 @@ scenario() {
   echo "FAULT $(now)" >>"$ev"
   case "$name" in
     kill) kill -KILL "$pid"; echo "KILL $(now) $who" >>"$ev" ;;
+    term)
+      kill -TERM "$pid"
+      local waited=0
+      while kill -0 "$pid" 2>/dev/null && [ $waited -lt 100 ]; do sleep 0.1; waited=$((waited + 1)); done
+      if kill -0 "$pid" 2>/dev/null; then echo "VERDICT $tag FAIL the leader did not exit within 10 s of SIGTERM"; failures=$((failures + 1)); fi
+      echo "EXITED $(now) $who" >>"$ev" ;;
     partition) docker pause "$px" >/dev/null ;;
     restart) docker restart "$PG" >/dev/null; pg_ready ;;
     terminate) docker exec "$PG" psql -U postgres -qtAc "select pg_terminate_backend(pid) from pg_stat_activity where application_name = 'vojak $who'" >/dev/null ;;
@@ -95,12 +103,14 @@ scenario() {
     "$OUT/$tag-a.log" "$OUT/$tag-b.log" || failures=$((failures + 1))
 }
 
-ONLY=${ONLY:-kill partition restart terminate freeze}
+ONLY=${ONLY:-kill term partition restart terminate freeze}
 want() { [[ " $ONLY " == *" $1 "* ]]; }
 for run in $(seq "$RUNS"); do
   # After a kill the server ends the session at once; the other replica takes the lock at its next
   # poll and, the predecessor not having released cleanly, waits localLease (research D12).
   want kill && scenario kill "$run" none $((LOCAL + POLL + 1000))
+  # A clean release: the other replica polls once and does not wait (research D12).
+  want term && scenario term "$run" none $((POLL + 1000))
   # After a partition the server ends the session at serverLease since the last renewal; then the
   # same wait. The old leader is down by localLease since its last renewal, long before.
   want partition && scenario partition "$run" none $((SERVER + LOCAL + POLL + 1000))

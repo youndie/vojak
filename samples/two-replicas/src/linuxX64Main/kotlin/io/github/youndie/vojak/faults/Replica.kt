@@ -5,26 +5,25 @@ import io.github.smyrgeorge.sqlx4k.postgres.postgreSQL
 import io.github.youndie.vojak.ElectionTiming
 import io.github.youndie.vojak.LockName
 import io.github.youndie.vojak.Namespace
+import io.github.youndie.kore.lifecycle.ShutdownDeadlines
+import io.github.youndie.kore.lifecycle.runUntilSignal
 import io.github.youndie.vojak.Vojak
+import io.github.youndie.vojak.kore.election
 import io.github.youndie.vojak.postgres.PostgresLockStore
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.alloc
 import kotlinx.cinterop.memScoped
 import kotlinx.cinterop.ptr
-import kotlinx.cinterop.staticCFunction
 import kotlinx.coroutines.awaitCancellation
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import platform.posix.CLOCK_MONOTONIC
-import platform.posix.SIGTERM
 import platform.posix.clock_gettime
 import platform.posix.fflush
-import platform.posix.signal
 import platform.posix.stdout
 import platform.posix.timespec
-import kotlin.concurrent.AtomicInt
 import kotlin.system.exitProcess
+import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 
@@ -37,7 +36,9 @@ import kotlin.time.Duration.Companion.seconds
  *   replica now                                   print the clock and exit (for the harness)
  *   replica <url> <candidate> [serverLeaseMs localLeaseMs renewEveryMs pollEveryMs]
  *
- * SIGTERM closes the election before exiting; SIGKILL and SIGSTOP are the suite's.
+ * SIGTERM goes through kore: its shutdown sequence closes the election in the consumer stage
+ * (`vojak-kore`), which releases the lease cleanly before the process exits. SIGKILL and SIGSTOP are
+ * the suite's.
  */
 fun main(args: Array<String>) {
     if (args.firstOrNull() == "now") {
@@ -53,8 +54,6 @@ fun main(args: Array<String>) {
         } else {
             ElectionTiming(serverLease = 4.seconds, localLease = 2.seconds, renewEvery = 500.milliseconds, pollEvery = 200.milliseconds)
         }
-    installTermHandler()
-
     runBlocking {
         val driver =
             postgreSQL(
@@ -82,21 +81,18 @@ fun main(args: Array<String>) {
             }
         val states = launch { election.leadership.collect { log(candidate, "STATE $it") } }
         log(candidate, "STARTED")
-        while (terminated.value == 0) delay(20.milliseconds)
-        log(candidate, "TERM")
-        election.close()
+        // No HTTP to stop accepting and nothing to drain: the only participant is the election.
+        runUntilSignal(
+            ShutdownDeadlines(preDrainWait = Duration.ZERO, drain = Duration.ZERO, gracePeriod = 10.seconds),
+            onFinished = { run -> log(candidate, "SHUTDOWN signal=${run.signal}") },
+        ) {
+            log(candidate, "TERM")
+            election(election)
+        }
         states.cancel()
         log(candidate, "EXIT")
     }
     exitProcess(0)
-}
-
-private val terminated = AtomicInt(0)
-
-@OptIn(ExperimentalForeignApi::class)
-private fun installTermHandler() {
-    // The handler only flips a flag: anything more on a signal stack is undefined behaviour.
-    signal(SIGTERM, staticCFunction { _: Int -> terminated.value = 1 })
 }
 
 @OptIn(ExperimentalForeignApi::class)
