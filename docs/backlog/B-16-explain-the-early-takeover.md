@@ -1,7 +1,7 @@
 ---
 id: B-16
 title: "Explain the one partition run where the successor led ~1 s earlier than the lease allows"
-status: wip
+status: done
 priority: P2
 size: S
 stage: stage-2-election
@@ -33,4 +33,20 @@ that run were overwritten by the next one.
   idle time, epoch and `released`), or `RUNS=50 ONLY=partition` without a recurrence, recorded as such;
   either way research §1.7's open paragraph is replaced by what was found.
 - Anchors: `samples/two-replicas/fault-suite.sh`, `samples/two-replicas/oracle.py`,
-  `vojak-postgres/src/commonMain/kotlin/io/github/youndie/vojak/postgres/Epochs.kt`.
+  `vojak-postgres/src/commonMain/kotlin/io/github/youndie/vojak/postgres/Epochs.kt`,
+  `samples/two-replicas/lease-clock.py` (the clock check).
+
+## Findings
+
+- **Closed 2026-10-02 as not reproduced.** `RUNS=50 ONLY=partition` on the Linux box, with the
+  server-side observer running. The oracle now refuses a takeover earlier than
+  `SERVER - RENEW + LOCAL` (5.5 s). None was early: 49 runs fell between 5.98 and 6.30 s.
+- **Clock jumps ruled out.** `lease-clock.py`: 40 of 40 leases ended at 4.00–4.01 s on
+  `CLOCK_MONOTONIC`. In 90 s there was no realtime jump. The +2.93 s jumps measured on 2026-09-25
+  stopped with the reboot on 2026-09-30.
+- **One run took over late, at 10.86 s, while the box was shared with CI.** The observer's
+  `docker exec` took ~10 s, and the follower's pool failed with `PoolTimedOut`. This is liveness under
+  a starved host, not a safety question: there was no overlap. The observer's samples now carry a
+  stamp both when the query starts and when the answer comes back.
+- Research §1.7: the open paragraph is replaced by these results.
+

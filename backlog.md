@@ -38,15 +38,14 @@ layer, so re-prioritising an item must never move its file.
 
 <!-- BEGIN INDEX -->
 
-## Open (3)
+## Open (2)
 
 | Task | | Priority | Size | Blocked by |
 |---|---|---|---|---|
 | [B-12](docs/backlog/B-12-release-0-1-0.md) `[ ]` | Release 0.1.0: vojak-core and vojak-postgres on Maven Central, checked by an outside consumer | P2 | S | B-11 |
-| [B-16](docs/backlog/B-16-explain-the-early-takeover.md) `[~]` | Explain the one partition run where the successor led ~1 s earlier than the lease allows | P2 | S | - |
 | [B-14](docs/backlog/B-14-report-the-abort-upstream.md) `[?]` | Report the I/O-error abort to sqlx4k upstream, with the fork's patch, once it has run | P3 | S | B-13 |
 
-## Closed (13)
+## Closed (14)
 
 **Evidence**
 
@@ -67,6 +66,7 @@ layer, so re-prioritising an item must never move its file.
 - [B-09](docs/backlog/B-09-fault-suite.md) `[x]` - Fault suite: kill, partition and restart, judged by an overlap oracle that is shown to fail
 - [B-13](docs/backlog/B-13-native-driver-aborts-on-io-errors.md) `[x]` - A patched sqlx4k-postgres that reports I/O errors instead of aborting, published from a fork
 - [B-15](docs/backlog/B-15-wait-out-the-previous-leader.md) `[x]` - A new leader waits until the previous one must have stepped down, unless it let go cleanly
+- [B-16](docs/backlog/B-16-explain-the-early-takeover.md) `[x]` - Explain the one partition run where the successor led ~1 s earlier than the lease allows
 
 **Adoption**
 
