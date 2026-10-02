@@ -43,7 +43,7 @@ class WhileLeaderTest {
                 }
             testScheduler.runCurrent()
 
-            assertEquals(Leadership.Leader, seenAtStart.await())
+            assertIs<Leadership.Leader>(seenAtStart.await())
             election.close()
         }
 
@@ -72,10 +72,10 @@ class WhileLeaderTest {
             store.renewal = { error("connection gone") }
 
             testScheduler.advanceTimeBy(timing.renewEvery.inWholeMilliseconds + 50)
-            assertEquals(Leadership.Leader, election.leadership.value, "still in the block's finally")
+            assertIs<Leadership.Leader>(election.leadership.value, "still in the block's finally")
             testScheduler.advanceTimeBy(60)
 
-            assertEquals(Leadership.Leader, seenInFinally, "the finally ran while the state still read Leader")
+            assertIs<Leadership.Leader>(seenInFinally, "the finally ran while the state still read Leader")
             assertEquals(Leadership.Follower, election.leadership.value)
             election.close()
         }
@@ -98,7 +98,7 @@ class WhileLeaderTest {
             assertEquals("the singleton failed", failures.single().message)
             assertEquals(Leadership.Follower, election.leadership.value)
             testScheduler.advanceTimeBy(timing.pollEvery.inWholeMilliseconds * 2 + 1)
-            assertEquals(Leadership.Leader, election.leadership.value)
+            assertIs<Leadership.Leader>(election.leadership.value)
             assertEquals(2, runs)
             election.close()
         }
@@ -114,7 +114,7 @@ class WhileLeaderTest {
             testScheduler.advanceTimeBy(10_000)
 
             assertEquals(1, runs)
-            assertEquals(Leadership.Leader, election.leadership.value)
+            assertIs<Leadership.Leader>(election.leadership.value)
             election.close()
         }
 
@@ -136,7 +136,7 @@ class WhileLeaderTest {
 
             val margin = (timing.serverLease - timing.localLease).inWholeMilliseconds
             testScheduler.advanceTimeBy(timing.renewEvery.inWholeMilliseconds + margin - 1)
-            assertEquals(Leadership.Leader, election.leadership.value)
+            assertIs<Leadership.Leader>(election.leadership.value)
             testScheduler.advanceTimeBy(2)
 
             assertEquals(Leadership.Follower, election.leadership.value)

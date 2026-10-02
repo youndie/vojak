@@ -22,6 +22,7 @@ import kotlin.random.Random
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertIs
 import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
@@ -91,14 +92,13 @@ class PostgresWhileLeaderTest {
             while (failures.isEmpty() && deadline.elapsedNow() < 10.seconds) delay(20.milliseconds)
             val thrower = if (failures.single().startsWith("a")) a else b
             val other = if (thrower === a) b else a
-            while (other.leadership.value != Leadership.Leader &&
+            while (other.leadership.value !is Leadership.Leader &&
                 deadline.elapsedNow() < 15.seconds
             ) {
                 delay(20.milliseconds)
             }
 
-            assertEquals(
-                Leadership.Leader,
+            assertIs<Leadership.Leader>(
                 other.leadership.value,
                 "the other replica did not take over:\n${log.joinToString("\n")}",
             )
@@ -143,7 +143,7 @@ class PostgresWhileLeaderTest {
             val (leader, follower) = if (first == "a") a to b else b to a
 
             leader.close()
-            while (follower.leadership.value != Leadership.Leader &&
+            while (follower.leadership.value !is Leadership.Leader &&
                 deadline.elapsedNow() < 15.seconds
             ) {
                 delay(20.milliseconds)

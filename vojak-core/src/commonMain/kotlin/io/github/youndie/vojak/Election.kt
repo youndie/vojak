@@ -39,7 +39,7 @@ public class Election internal constructor(
     private val timing: ElectionTiming,
     private val timeSource: TimeSource,
     private val onStoreFailure: (Throwable) -> Unit,
-    private val work: (suspend CoroutineScope.() -> Unit)?,
+    private val work: (suspend CoroutineScope.(epoch: Long) -> Unit)?,
     private val onWorkFailure: (Throwable) -> Unit,
     private val onClosed: suspend () -> Unit,
 ) {
@@ -84,10 +84,10 @@ public class Election internal constructor(
                 continue
             }
             try {
-                state.value = Leadership.Leader
+                state.value = Leadership.Leader(lease.epoch)
                 holdUntilLost(lease)
             } finally {
-                if (state.value == Leadership.Leader) state.value = Leadership.Follower
+                if (state.value is Leadership.Leader) state.value = Leadership.Follower
                 withContext(NonCancellable) { lease.release() }
             }
             // Two polls' pause before campaigning again: without it a process that just lost the lease
@@ -132,7 +132,7 @@ public class Election internal constructor(
             work?.let { block ->
                 detached.launch {
                     try {
-                        block()
+                        block(lease.epoch)
                     } catch (cancelled: CancellationException) {
                         throw cancelled
                     } catch (failure: Throwable) {

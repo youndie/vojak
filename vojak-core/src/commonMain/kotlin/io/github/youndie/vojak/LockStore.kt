@@ -40,6 +40,12 @@ public interface LockStore {
 /** A key held until [release], kept alive by [renew]. */
 public interface Lease {
     /**
+     * This lease's number among every lease of its key: strictly greater than any earlier one's,
+     * assigned and made durable before the lease is returned.
+     */
+    public val epoch: Long
+
+    /**
      * Proves the lease is still held and restarts the store's countdown.
      *
      * @throws Throwable when it is not held any more — the caller must stop acting as the holder.

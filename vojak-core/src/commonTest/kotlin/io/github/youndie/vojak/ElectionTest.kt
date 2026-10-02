@@ -9,6 +9,7 @@ import kotlinx.coroutines.withContext
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertIs
 import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
@@ -35,9 +36,9 @@ class ElectionTest {
             val election = vojak(store).elect(sender, "pod-a", backgroundScope, timing)
 
             testScheduler.runCurrent()
-            assertEquals(Leadership.Leader, election.leadership.value)
+            assertIs<Leadership.Leader>(election.leadership.value)
             testScheduler.advanceTimeBy(10_000)
-            assertEquals(Leadership.Leader, election.leadership.value)
+            assertIs<Leadership.Leader>(election.leadership.value)
             assertTrue(
                 store.leases.values
                     .single()
@@ -54,14 +55,14 @@ class ElectionTest {
             val a = vojak(store).elect(sender, "pod-a", backgroundScope, timing)
             val b = vojak(store).elect(sender, "pod-b", backgroundScope, timing)
             testScheduler.runCurrent()
-            assertEquals(Leadership.Leader, a.leadership.value)
+            assertIs<Leadership.Leader>(a.leadership.value)
             assertEquals(Leadership.Follower, b.leadership.value)
 
             a.close()
             assertEquals(Leadership.Closed, a.leadership.value)
             testScheduler.advanceTimeBy(timing.pollEvery.inWholeMilliseconds + 1)
 
-            assertEquals(Leadership.Leader, b.leadership.value)
+            assertIs<Leadership.Leader>(b.leadership.value)
             b.close()
         }
 
@@ -95,7 +96,7 @@ class ElectionTest {
             assertEquals(Leadership.Follower, election.leadership.value)
             testScheduler.advanceTimeBy(2)
 
-            assertEquals(Leadership.Leader, election.leadership.value)
+            assertIs<Leadership.Leader>(election.leadership.value)
             election.close()
         }
 
@@ -110,10 +111,10 @@ class ElectionTest {
             store.renewal = { withContext(NonCancellable) { CompletableDeferred<Unit>().await() } }
             val election = vojak(store).elect(sender, "pod-a", backgroundScope, timing)
             testScheduler.runCurrent()
-            assertEquals(Leadership.Leader, election.leadership.value)
+            assertIs<Leadership.Leader>(election.leadership.value)
 
             testScheduler.advanceTimeBy(timing.localLease.inWholeMilliseconds - 1)
-            assertEquals(Leadership.Leader, election.leadership.value)
+            assertIs<Leadership.Leader>(election.leadership.value)
             testScheduler.advanceTimeBy(2)
 
             assertEquals(Leadership.Follower, election.leadership.value)
@@ -151,5 +152,23 @@ class ElectionTest {
         runTest {
             val vojak = vojak(FakeLockStore { testScheduler.currentTime })
             assertFailsWith<IllegalArgumentException> { vojak.elect(sender, "pod a'; drop", backgroundScope, timing) }
+        }
+
+    @Test
+    fun eachLeadershipCarriesTheNextEpochAndTheBlockGetsThatOne() =
+        runTest {
+            val store = FakeLockStore { testScheduler.currentTime }
+            val given = mutableListOf<Long>()
+            val a = vojak(store).elect(sender, "pod-a", backgroundScope, timing) { epoch -> given += epoch }
+            val b = vojak(store).elect(sender, "pod-b", backgroundScope, timing) { epoch -> given += epoch }
+            testScheduler.runCurrent()
+            assertEquals(Leadership.Leader(1), a.leadership.value)
+
+            a.close()
+            testScheduler.advanceTimeBy(timing.pollEvery.inWholeMilliseconds + 1)
+
+            assertEquals(Leadership.Leader(2), b.leadership.value)
+            assertEquals(listOf(1L, 2L), given)
+            b.close()
         }
 }

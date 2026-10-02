@@ -29,6 +29,7 @@ class FakeLockStore(
     }
 
     val leases = mutableMapOf<Long, FakeLease>()
+    private val epochs = mutableMapOf<Long, Long>()
 
     /** What every renewal does; replace it to make renewals fail or hang. */
     var renewal: suspend () -> Unit = {}
@@ -39,11 +40,14 @@ class FakeLockStore(
         holder: String,
     ): Lease? {
         if (key in heldElsewhere || key in held || key in leases) return null
-        return FakeLease(key).also { leases[key] = it }
+        val epoch = (epochs[key] ?: 0L) + 1
+        epochs[key] = epoch
+        return FakeLease(key, epoch).also { leases[key] = it }
     }
 
     inner class FakeLease(
         private val key: Long,
+        override val epoch: Long,
     ) : Lease {
         var renewals = 0
         var released = false

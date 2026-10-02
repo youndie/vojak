@@ -38,11 +38,10 @@ layer, so re-prioritising an item must never move its file.
 
 <!-- BEGIN INDEX -->
 
-## Open (7)
+## Open (6)
 
 | Task | | Priority | Size | Blocked by |
 |---|---|---|---|---|
-| [B-08](docs/backlog/B-08-fencing-epoch.md) `[ ]` | Each leadership gets the next epoch, so a store can reject a stale leader | P1 | S | B-06 |
 | [B-09](docs/backlog/B-09-fault-suite.md) `[ ]` | Fault suite: kill, partition and restart, judged by an overlap oracle that is shown to fail | P1 | L | B-07, B-08, B-13, B-15 |
 | [B-15](docs/backlog/B-15-wait-out-the-previous-leader.md) `[ ]` | A new leader waits until the previous one must have stepped down, unless it let go cleanly | P1 | M | B-08 |
 | [B-10](docs/backlog/B-10-kore-participant.md) `[ ]` | vojak-kore: hand leadership over during the drain instead of after the lease | P2 | S | B-07 |
@@ -50,7 +49,7 @@ layer, so re-prioritising an item must never move its file.
 | [B-12](docs/backlog/B-12-release-0-1-0.md) `[ ]` | Release 0.1.0: vojak-core and vojak-postgres on Maven Central, checked by an outside consumer | P2 | S | B-11 |
 | [B-14](docs/backlog/B-14-report-the-abort-upstream.md) `[?]` | Report the I/O-error abort to sqlx4k upstream, with the fork's patch, once it has run | P3 | S | B-13 |
 
-## Closed (8)
+## Closed (9)
 
 **Evidence**
 
@@ -67,6 +66,7 @@ layer, so re-prioritising an item must never move its file.
 
 - [B-06](docs/backlog/B-06-election.md) `[x]` - Election: hold the lock, keep the lease, publish Leadership as a StateFlow
 - [B-07](docs/backlog/B-07-while-leader.md) `[x]` - whileLeader runs the singleton's loop and cancels it before leadership is observably lost
+- [B-08](docs/backlog/B-08-fencing-epoch.md) `[x]` - Each leadership gets the next epoch, so a store can reject a stale leader
 - [B-13](docs/backlog/B-13-native-driver-aborts-on-io-errors.md) `[x]` - A patched sqlx4k-postgres that reports I/O errors instead of aborting, published from a fork
 
 <!-- END INDEX -->
