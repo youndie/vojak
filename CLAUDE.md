@@ -13,7 +13,7 @@ the project has no way to fail, so prefer them.
 ## How to start a session
 
 1. [docs/research/research-architecture.md](docs/research/research-architecture.md) — what was read
-   in the artefacts and what follows from it. Three findings decide the design and contradict the
+   in the artefacts and what follows from it. Four findings decide the design and contradict the
    textbook recipe:
    - **an advisory lock belongs to a session, not a process** (§1.1) — a pool or a partition
      separates the two, and the lock alone cannot tell;
@@ -22,6 +22,9 @@ the project has no way to fail, so prefer them.
    - **neither Postgres driver of sqlx4k uses the Kotlin pool in sqlx4k's core** (§1.3) — native pools
      in Rust, the JVM in r2dbc-pool — so nothing may assume what a pool does with a session; hence
      a transaction-level lock, never a session-level one (D1).
+   - **when the server ends the leader's session, the follower leads before the old leader notices**
+     (§1.6, measured in every round) — taking the lock is not proof the previous leader stopped;
+     D12 and B-15 are the fix, the epoch is the only guard until then.
 2. [backlog.md](backlog.md) — the goal, the stages and the index. Items are one file each in
    `docs/backlog/`; the index between the markers is generated, so edit the item and run
    `python3 scripts/backlog_index.py`.

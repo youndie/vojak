@@ -236,6 +236,30 @@ the patched build (or an upstream release with the fix) is the documented minimu
 the cancelled call keeps its connection until the network returns — which, per Consequence 11, is
 also when it aborts the process.
 
+### 1.6 When the server ends the leader's session, the follower leads first — measured (2026-10-02)
+
+Found as a flaky test in B-06 and then measured on purpose: two replicas campaign for one name
+(`serverLease` 4 s, `localLease` 2 s, `renewEvery` 500 ms, `pollEvery` 200 ms), the leader's session
+is ended with `pg_terminate_backend`, and both `leadership` flows are sampled every 2 ms. Three
+rounds per target, `jvm` and `linuxX64`, Postgres 18.6 (a throwaway test, not kept):
+
+| Round | Follower reports `Leader` after | Old leader reports `Follower` after | Both `Leader` at once |
+|---|---|---|---|
+| 1 | 171 ms / 112 ms | 467 ms / 263 ms | yes / yes |
+| 2 | 110 ms / 189 ms | 309 ms / 480 ms | yes / yes |
+| 3 | 103 ms / 187 ms | 252 ms / 479 ms | yes / yes |
+
+**Consequence 14.** Ending the session frees the lock *at once*, and the follower's next poll takes
+it; the old leader learns of it only at its next renewal. Every round overlapped, for up to
+`renewEvery` plus a round trip. The same holds for anything that ends sessions from the server's
+side — a restart, a failover, an administrator — while a partition (the server lease expires) and a
+dead process (no believer left) do not overlap: there the old leader's local lease, shorter than the
+server's, has already run out. The promise of D9 was written for the second kind only.
+
+How it was found is worth keeping: the JVM and native suites run in parallel against one database,
+and with the same candidate names in both, one suite's "end the leader's session" ended the other
+suite's leader — `ofTwoReplicasExactlyOneLeads` then failed with "two leaders at once".
+
 ---
 
 ## 2. Decisions
@@ -333,6 +357,11 @@ out a monotonically increasing epoch per leadership so that a store can reject a
 writes. Making a stale leader harmless is the consumer's store's job; vojak makes it possible and
 says so, rather than implying it.
 
+*Correction found in B-06 (§1.6):* as built, the promise holds when the old leader is partitioned or
+dead, and **not** when the server ends its session — restart, failover, `pg_terminate_backend` —
+where the follower leads up to `renewEvery` before the old leader notices. Measured in every round.
+The fix is D12; until it lands, the epoch (B-08) is the only protection against that window.
+
 ### D10. A process that lost the lease waits a poll before campaigning again *(found in B-06)*
 
 Without the pause the process that just lost the lease is the first to ask for it back, every time
@@ -345,6 +374,19 @@ the server lease), but not after a clean failure such as a killed session.
 The brief said per process. A process-wide registry would forbid the one legitimate case of two:
 tests that stand up two replicas in one process — which is how every election test against Postgres
 runs. A service builds one `Vojak`; the rule holds there, and `DuplicateElectionException` names it.
+
+### D12. A new leader waits out the previous one unless that one let go cleanly *(proposed, B-15)*
+
+Taking the lock is not the same as the previous leader having stopped (§1.6). After taking it, a new
+leader declares itself only once the previous one *must* have noticed: its last successful renewal
+plus `localLease` — which the new leader cannot see, so it waits a full `localLease` from taking the
+lock. That is the worst case, and it is paid only when needed: a leader that gives the lease up
+cleanly (`close()`, kore's drain) marks its epoch released in the same transaction that ends the
+lease, and a successor that finds the mark skips the wait. A graceful handover stays within a poll;
+a restart or a kill costs `localLease` (7.5 s by default) of nobody leading — the price of the
+promise being true. Rejected: shortening the window by renewing faster (it narrows the overlap and
+never closes it), and leaving it to the epoch alone (the epoch protects stores, not side effects
+such as a bot polling its upstream).
 
 ---
 
