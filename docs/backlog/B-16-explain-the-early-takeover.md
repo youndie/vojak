@@ -1,7 +1,7 @@
 ---
 id: B-16
 title: "Explain the one partition run where the successor led ~1 s earlier than the lease allows"
-status: open
+status: wip
 priority: P2
 size: S
 stage: stage-2-election
