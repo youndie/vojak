@@ -59,3 +59,14 @@ research D1 with the lease of D2 and heartbeats inside it; everyone else polls.
 - **Renewals run outside the campaign's structure** and a lease never takes two calls at once: a
   release asked for while a renewal is stuck is performed when that renewal returns
   (`PostgresLease`). Not exercised against a real partition here — that is B-09.
+
+## After closing — 2026-10-02
+
+The merged suite went red once: `ofTwoReplicasExactlyOneLeads` saw two leaders on the JVM while
+`whenTheServerEndsTheLeadersSessionItStepsDownAndLeadershipComesBack` failed on linuxX64. Cause: the
+two suites ran in parallel against one database with the same candidate names, and the native
+suite's lookup by `application_name` ended the JVM suite's leader. Fixed by per-test candidate names
+(`fix/b-06-flaky-election-tests`). **The "two leaders" it showed was real**, not an artefact of the
+test: research §1.6 measured it, and [B-15](B-15-wait-out-the-previous-leader.md) is the fix. The
+"server ends the leader's session" AC above was walked for *the old leader steps down*, not for
+*nobody else leads before it has* — the second is B-15's.
