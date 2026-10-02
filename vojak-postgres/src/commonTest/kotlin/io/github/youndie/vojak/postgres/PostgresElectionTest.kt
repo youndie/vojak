@@ -12,6 +12,9 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
@@ -44,6 +47,32 @@ class PostgresElectionTest {
         )
     private val drivers = mutableListOf<Driver>()
     private val elections = mutableListOf<Election>()
+
+    // Candidates unique per test instance: `pod-a` in every test made the `application_name` lookup
+    // below free to find another test's session, and a kill aimed at the wrong pid looks exactly like
+    // a leader that does not step down.
+    private val suffix = namespace.value
+    private val podA = "pod-a-$suffix"
+    private val podB = "pod-b-$suffix"
+
+    // Every transition of every election, with the time it was seen — printed when a test fails, so
+    // a failure says who led when instead of only that an assertion did not hold.
+    private val started = TimeSource.Monotonic.markNow()
+    private val timelineLock = Mutex()
+    private val timeline = mutableListOf<String>()
+
+    private fun CoroutineScope.record(
+        label: String,
+        election: Election,
+    ) {
+        launch {
+            election.leadership.collect { state ->
+                timelineLock.withLock { timeline += "${started.elapsedNow().inWholeMilliseconds} ms  $label  $state" }
+            }
+        }
+    }
+
+    private suspend fun timelineText(): String = timelineLock.withLock { timeline.joinToString("\n", prefix = "\n") }
 
     private fun replica(): Vojak = Vojak(PostgresLockStore(TestDatabase.driver().also { drivers += it }), namespace)
 
@@ -87,26 +116,28 @@ class PostgresElectionTest {
     fun ofTwoReplicasExactlyOneLeads() =
         realTime {
             val scope = CoroutineScope(coroutineContext + kotlinx.coroutines.SupervisorJob())
-            val a = replica().campaign("pod-a", scope)
-            val b = replica().campaign("pod-b", scope)
+            val a = replica().campaign(podA, scope)
+            val b = replica().campaign(podB, scope)
+            scope.record("a", a)
+            scope.record("b", b)
 
             assertNotNull(awaitLeader(listOf(a, b), 10.seconds), "nobody led within 10 s")
             // Watched for several renewals: never both, and after it, still exactly one.
             val watch = TimeSource.Monotonic.markNow()
             while (watch.elapsedNow() < 3.seconds) {
                 val leaders = listOf(a, b).count { it.leadership.value == Leadership.Leader }
-                assertTrue(leaders <= 1, "two leaders at once")
+                assertTrue(leaders <= 1, "two leaders at once:${timelineText()}")
                 delay(20.milliseconds)
             }
-            assertEquals(1, listOf(a, b).count { it.leadership.value == Leadership.Leader })
+            assertEquals(1, listOf(a, b).count { it.leadership.value == Leadership.Leader }, timelineText())
         }
 
     @Test
     fun whenTheLeaderClosesTheOtherTakesOverWithinAPoll() =
         realTime {
             val scope = CoroutineScope(coroutineContext + kotlinx.coroutines.SupervisorJob())
-            val a = replica().campaign("pod-a", scope)
-            val b = replica().campaign("pod-b", scope)
+            val a = replica().campaign(podA, scope)
+            val b = replica().campaign(podB, scope)
             val leader = assertNotNull(awaitLeader(listOf(a, b), 10.seconds))
             val other = if (leader === a) b else a
 
@@ -126,13 +157,24 @@ class PostgresElectionTest {
     fun whenTheServerEndsTheLeadersSessionItStepsDownAndLeadershipComesBack() =
         realTime {
             val scope = CoroutineScope(coroutineContext + kotlinx.coroutines.SupervisorJob())
-            val a = replica().campaign("pod-a", scope)
-            val b = replica().campaign("pod-b", scope)
+            val a = replica().campaign(podA, scope)
+            val b = replica().campaign(podB, scope)
+            scope.record("a", a)
+            scope.record("b", b)
             val db = observer()
             val leader = assertNotNull(awaitLeader(listOf(a, b), 10.seconds))
-            val candidate = if (leader === a) "pod-a" else "pod-b"
+            val candidate = if (leader === a) podA else podB
 
-            val pid = db.text("select pid::text from pg_stat_activity where application_name = 'vojak $candidate'")
+            val pids =
+                db.text(
+                    "select string_agg(pid::text, ',') from pg_stat_activity where application_name = 'vojak $candidate'",
+                )
+            assertEquals(1, pids.split(',').size, "sessions named 'vojak $candidate': $pids")
+            val pid = pids
+            timelineLock.withLock {
+                timeline +=
+                    "${started.elapsedNow().inWholeMilliseconds} ms  terminate $pid ($candidate)"
+            }
             val killed = TimeSource.Monotonic.markNow()
             db.text("select pg_terminate_backend($pid)::text")
 
@@ -141,8 +183,11 @@ class PostgresElectionTest {
             ) {
                 delay(20.milliseconds)
             }
-            assertEquals(Leadership.Follower, leader.leadership.value)
-            assertTrue(killed.elapsedNow() < timing.renewEvery + 1.seconds, "stepped down after ${killed.elapsedNow()}")
+            assertEquals(Leadership.Follower, leader.leadership.value, timelineText())
+            assertTrue(
+                killed.elapsedNow() < timing.renewEvery + 1.seconds,
+                "stepped down after ${killed.elapsedNow()}:${timelineText()}",
+            )
             assertNotNull(awaitLeader(listOf(a, b), 10.seconds), "nobody led again")
         }
 
@@ -151,8 +196,8 @@ class PostgresElectionTest {
         realTime {
             val scope = CoroutineScope(coroutineContext + kotlinx.coroutines.SupervisorJob())
             val vojak = replica()
-            vojak.campaign("pod-a", scope)
+            vojak.campaign(podA, scope)
 
-            assertFailsWith<DuplicateElectionException> { vojak.elect(sender, "pod-a", scope, timing) }
+            assertFailsWith<DuplicateElectionException> { vojak.elect(sender, podA, scope, timing) }
         }
 }
