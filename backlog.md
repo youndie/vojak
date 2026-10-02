@@ -43,7 +43,7 @@ layer, so re-prioritising an item must never move its file.
 | Task | | Priority | Size | Blocked by |
 |---|---|---|---|---|
 | [B-09](docs/backlog/B-09-fault-suite.md) `[ ]` | Fault suite: kill, partition and restart, judged by an overlap oracle that is shown to fail | P1 | L | B-07, B-08, B-13, B-15 |
-| [B-15](docs/backlog/B-15-wait-out-the-previous-leader.md) `[ ]` | A new leader waits until the previous one must have stepped down, unless it let go cleanly | P1 | M | B-08 |
+| [B-15](docs/backlog/B-15-wait-out-the-previous-leader.md) `[~]` | A new leader waits until the previous one must have stepped down, unless it let go cleanly | P1 | M | B-08 |
 | [B-10](docs/backlog/B-10-kore-participant.md) `[ ]` | vojak-kore: hand leadership over during the drain instead of after the lease | P2 | S | B-07 |
 | [B-11](docs/backlog/B-11-reference-sample.md) `[ ]` | Reference consumer: two replicas, one singleton, a store that rejects a stale epoch | P2 | M | B-09, B-10 |
 | [B-12](docs/backlog/B-12-release-0-1-0.md) `[ ]` | Release 0.1.0: vojak-core and vojak-postgres on Maven Central, checked by an outside consumer | P2 | S | B-11 |
