@@ -41,7 +41,12 @@ the Mac:
 ~/.claude/bin/wsl-run make build                             # the code gate: test Postgres, then gradle build
 cd samples/probe && ~/.claude/bin/wsl-run ./run.sh          # the B-01 probe, both targets
 CHECKS=N1 ~/.claude/bin/wsl-run ./run.sh                    # one check
+cd samples/two-replicas && ~/.claude/bin/wsl-run ./fault-suite.sh   # B-09: kill/partition/restart/terminate/freeze
 ```
+
+The fault suite is not in `make build`: it needs Docker, two native processes and ~2 minutes per
+round. `RUNS=n` repeats, `ONLY="terminate partition"` picks scenarios; every invocation keeps its logs
+under `samples/two-replicas/build/faults/<timestamp>/` on the Linux side.
 
 `make build` starts `vojak-test-pg` (Postgres 18 on `127.0.0.1:55440`) and reuses it afterwards;
 `docker stop vojak-test-pg` is how to see the suite fail without it. What a green `build` covers:
