@@ -5,6 +5,8 @@
 #   kill       SIGKILL of the leader — its socket closes, the server ends the session at once
 #   partition  `docker pause` of the leader's proxy — the connection stays open and nothing arrives
 #   restart    `docker restart` of Postgres — every session ends
+#   terminate  `pg_terminate_backend` of the leader's session only — the lock is free at once while
+#              the leader still believes (research §1.6); the case D12 exists for
 #   freeze     SIGSTOP of the leader for longer than the server lease, then SIGCONT — THE CONTROL:
 #              a paused process is the one case research D9 excludes, so the oracle must see the
 #              overlap there, or it has not been shown able to see one at all
@@ -79,6 +81,7 @@ scenario() {
     kill) kill -KILL "$pid"; echo "KILL $(now) $who" >>"$ev" ;;
     partition) docker pause "$px" >/dev/null ;;
     restart) docker restart "$PG" >/dev/null; pg_ready ;;
+    terminate) docker exec "$PG" psql -U postgres -qtAc "select pg_terminate_backend(pid) from pg_stat_activity where application_name = 'vojak $who'" >/dev/null ;;
     freeze) kill -STOP "$pid"; sleep $(( (SERVER + LOCAL) / 1000 + 2 )); kill -CONT "$pid" ;;
   esac
   sleep 10
@@ -92,7 +95,7 @@ scenario() {
     "$OUT/$tag-a.log" "$OUT/$tag-b.log" || failures=$((failures + 1))
 }
 
-ONLY=${ONLY:-kill partition restart freeze}
+ONLY=${ONLY:-kill partition restart terminate freeze}
 want() { [[ " $ONLY " == *" $1 "* ]]; }
 for run in $(seq "$RUNS"); do
   # After a kill the server ends the session at once; the other replica takes the lock at its next
@@ -102,6 +105,8 @@ for run in $(seq "$RUNS"); do
   # same wait. The old leader is down by localLease since its last renewal, long before.
   want partition && scenario partition "$run" none $((SERVER + LOCAL + POLL + 1000))
   want restart && scenario restart "$run" none 30000
+  # The other replica takes the freed lock at its next poll and waits localLease (D12).
+  want terminate && scenario terminate "$run" none $((LOCAL + POLL + 1000))
   want freeze && scenario freeze "$run" overlap
 done
 echo "SUITE failures=$failures"
