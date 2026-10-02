@@ -333,6 +333,19 @@ out a monotonically increasing epoch per leadership so that a store can reject a
 writes. Making a stale leader harmless is the consumer's store's job; vojak makes it possible and
 says so, rather than implying it.
 
+### D10. A process that lost the lease waits a poll before campaigning again *(found in B-06)*
+
+Without the pause the process that just lost the lease is the first to ask for it back, every time
+— flapping, and the other replicas never get a turn after a failure that was this one's. Found on a
+fake store, which releases instantly; Postgres usually hides it (the old session keeps the lock until
+the server lease), but not after a clean failure such as a killed session.
+
+### D11. "One election per name per process" is enforced per `Vojak` instance *(deviation from the brief)*
+
+The brief said per process. A process-wide registry would forbid the one legitimate case of two:
+tests that stand up two replicas in one process — which is how every election test against Postgres
+runs. A service builds one `Vojak`; the rule holds there, and `DuplicateElectionException` names it.
+
 ---
 
 ## 3. Risks and open questions

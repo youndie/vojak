@@ -1,3 +1,5 @@
+import java.time.Duration
+
 plugins {
     kotlin("multiplatform")
     alias(libs.plugins.sborkaKmp)
@@ -25,4 +27,11 @@ kotlin {
             }
         }
     }
+}
+
+// A TEST RUN HAS A DEADLINE. The core runs on virtual time, so a green run takes seconds; a broken
+// step-down timer turns the wait into a loop that never suspends, which `runTest` cannot interrupt —
+// in B-06 that mutant held the suite for the full 900 s of an outer timeout instead of failing.
+tasks.withType<AbstractTestTask>().configureEach {
+    timeout.set(Duration.ofMinutes(5))
 }
