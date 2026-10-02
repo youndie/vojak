@@ -361,6 +361,9 @@ says so, rather than implying it.
 dead, and **not** when the server ends its session — restart, failover, `pg_terminate_backend` —
 where the follower leads up to `renewEvery` before the old leader notices. Measured in every round.
 The fix is D12; until it lands, the epoch (B-08) is the only protection against that window.
+*Closed in B-15:* with D12 built, the §1.6 measurement is a test on both targets
+(`whenTheServerEndsTheLeadersSessionNobodyElseLeadsBeforeItHasSteppedDown`), green, and red with the
+wait removed. The promise above holds again — at the cost written in D12.
 
 ### D10. A process that lost the lease waits two polls before campaigning again *(found in B-06, amended in B-07)*
 
@@ -380,7 +383,7 @@ The brief said per process. A process-wide registry would forbid the one legitim
 tests that stand up two replicas in one process — which is how every election test against Postgres
 runs. A service builds one `Vojak`; the rule holds there, and `DuplicateElectionException` names it.
 
-### D12. A new leader waits out the previous one unless that one let go cleanly *(proposed, B-15)*
+### D12. A new leader waits out the previous one unless that one let go cleanly *(built in B-15)*
 
 Taking the lock is not the same as the previous leader having stopped (§1.6). After taking it, a new
 leader declares itself only once the previous one *must* have noticed: its last successful renewal
@@ -392,6 +395,14 @@ a restart or a kill costs `localLease` (7.5 s by default) of nobody leading — 
 promise being true. Rejected: shortening the window by renewing faster (it narrows the overlap and
 never closes it), and leaving it to the epoch alone (the epoch protects stores, not side effects
 such as a bot polling its upstream).
+
+*As built (B-15):* the mark is a `released` column of the epoch table. The acquiring upsert reads the
+predecessor's mark through a CTE — every part of one statement sees the same snapshot, so it is the
+row before this statement changed it — and the release writes the mark inside the holding
+transaction just before its commit, so the mark and the free lock become visible together. Any
+release vojak makes may set it, because it is always made after the state left `Leader`; only an
+ended session leaves it unset. A partition therefore also costs the wait — the server lease ran out,
+nobody released — which is the safe side and only `localLease` long.
 
 ---
 

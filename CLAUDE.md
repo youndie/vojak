@@ -3,12 +3,12 @@
 Leader election and a distributed lock for Kotlin services on Postgres advisory locks.
 **Native-first** — `linuxX64` decides the design, `jvm` follows, `linuxArm64` is compiled.
 
-**The lock, the election, `whileLeader` and the epoch are built; B-15's wait-out and `vojak-kore` are
-not.** `vojak-core` has names, keys, the lock API, `Election` with `Leader(epoch)` and its
-`whileLeader` block; `vojak-postgres` the lock store, the lease and the epoch table
-(`<prefix>_epoch`, created on first election). `samples/probe/` is the B-01 probe — a separate Gradle
-build outside any gate. `backlog.md` and the build are what say how far things have got; a sentence
-here about the state of the project has no way to fail, so prefer them.
+**The lock, the election, `whileLeader`, the epoch and the wait-out are built; `vojak-kore` is not.**
+`vojak-core` has names, keys, the lock API, `Election` with `Leader(epoch)`, its `whileLeader` block
+and the D12 wait; `vojak-postgres` the lock store, the lease and the epoch table (`<prefix>_epoch`,
+with the clean-release mark, created on first election). `samples/probe/` is the B-01 probe — a
+separate Gradle build outside any gate. `backlog.md` and the build are what say how far things have
+got; a sentence here about the state of the project has no way to fail, so prefer them.
 
 ## How to start a session
 
@@ -22,9 +22,9 @@ here about the state of the project has no way to fail, so prefer them.
    - **neither Postgres driver of sqlx4k uses the Kotlin pool in sqlx4k's core** (§1.3) — native pools
      in Rust, the JVM in r2dbc-pool — so nothing may assume what a pool does with a session; hence
      a transaction-level lock, never a session-level one (D1).
-   - **when the server ends the leader's session, the follower leads before the old leader notices**
-     (§1.6, measured in every round) — taking the lock is not proof the previous leader stopped;
-     D12 and B-15 are the fix, the epoch is the only guard until then.
+   - **when the server ends the leader's session, the follower would lead before the old leader
+     notices** (§1.6, measured in every round) — taking the lock is not proof the previous leader
+     stopped; so a new leader waits `localLease` unless the previous one released cleanly (D12).
 2. [backlog.md](backlog.md) — the goal, the stages and the index. Items are one file each in
    `docs/backlog/`; the index between the markers is generated, so edit the item and run
    `python3 scripts/backlog_index.py`.

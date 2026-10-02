@@ -1,7 +1,7 @@
 ---
 id: B-15
 title: "A new leader waits until the previous one must have stepped down, unless it let go cleanly"
-status: wip
+status: done
 priority: P1
 size: M
 stage: stage-2-election
@@ -36,3 +36,22 @@ D9), in exactly the situations a leader election is for.
 - Anchors: `vojak-core/src/commonMain/kotlin/io/github/youndie/vojak/Election.kt`,
   `vojak-postgres/src/commonMain/kotlin/io/github/youndie/vojak/postgres/PostgresLease.kt`,
   `vojak-postgres/src/commonTest/kotlin/io/github/youndie/vojak/postgres/PostgresElectionTest.kt`.
+
+## Findings — 2026-10-02
+
+- **Done, on both targets** (`make build` on the Linux box, twice on the head): `Lease.previousReleasedCleanly`
+  in the port; `Election.holdUntilLost` holds and renews for `localLease` before reporting `Leader`
+  when it is `false`; `Epochs.next` returns the predecessor's mark through a CTE, `PostgresLease`
+  writes it and commits on a clean release; the table gains `released` (added to B-08's tables with
+  `alter … add column if not exists`).
+- **AC, walked**: research §1.6 as a test — the leader's session ended, both flows sampled every 2 ms
+  for `localLease` + 2 s, never two leaders, somebody leads again
+  (`whenTheServerEndsTheLeadersSessionNobodyElseLeadsBeforeItHasSteppedDown`); **the control** — the
+  wait removed — turns that test red on both targets, and the fake-store twin
+  (`afterTheStoreEndsTheLeadersSessionTheSuccessorWaitsAndTheyNeverOverlap`) with it. A graceful
+  `close()` still hands over within one poll, now asserted below `localLease` so a missing mark
+  cannot hide inside the old 3-second bound.
+- **Mutation**: the mark not written — the graceful-handover test and the 100-handover epoch test go
+  red.
+- **Cost, as D12 says**: after a restart, a failover, a terminated session or a partition, nobody
+  leads for `localLease` (7.5 s by default). Recorded in research D12 "as built".
