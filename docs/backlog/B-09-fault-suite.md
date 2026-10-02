@@ -1,7 +1,7 @@
 ---
 id: B-09
 title: "Fault suite: kill, partition and restart, judged by an overlap oracle that is shown to fail"
-status: open
+status: wip
 priority: P1
 size: L
 stage: stage-2-election
