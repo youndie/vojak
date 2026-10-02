@@ -138,6 +138,14 @@ different trigger — any I/O error ends the process.
 right one, `io.github.youndie:kore-core`, answers 404 too; the conclusion stands on the right
 evidence now.
 
+*Found in B-10:* `kore-core`'s JVM variants (0.1.12 and 0.1.14 in the portfolio's reposilite) are
+compiled for Java 25 — class file version 69 — and their `.module` metadata carries no
+`org.gradle.jvm.version`. A consumer on Java 21 resolves them and fails at run time with
+`UnsupportedClassVersionError` (`vojak-kore`'s JVM test did, on 21). Verified against
+`io.github.youndie:kore-core:0.1.12!/kore-core-0.1.12.module` and the failing run. So `vojak-kore`
+compiles for 25 and declares 25 itself (`vojak-kore/build.gradle.kts`); the rest of vojak keeps the
+floor of 21.
+
 **Consequence 9.** `vojak-kore` is a consumer participant — release the lock after in-flight
 work is cancelled and before the pool it needs is closed — and it is the whole of the kore
 integration. It also cannot be published to Maven Central while kore is not there: a POM on
