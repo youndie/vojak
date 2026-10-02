@@ -17,10 +17,21 @@ import kotlin.time.Duration
  * tell anybody its maximum (research Consequence 7).
  *
  * @param driver built by the caller with `sqlx4k-postgres`; vojak depends on no driver (research D3).
+ * @param tablePrefix the one table vojak owns is `<tablePrefix>_epoch`, created on first election;
+ *   vojak touches no other table.
  */
 public class PostgresLockStore(
     private val driver: Driver,
+    tablePrefix: String = "vojak",
 ) : LockStore {
+    init {
+        require(
+            IDENTIFIER.matches(tablePrefix),
+        ) { "a table prefix must match [a-z_][a-z0-9_]{0,40}, got '$tablePrefix'" }
+    }
+
+    private val epochs = Epochs(driver, "${tablePrefix}_epoch")
+
     override suspend fun <T> tryHolding(
         key: Long,
         block: suspend () -> T,
@@ -80,13 +91,20 @@ public class PostgresLockStore(
             tx.release()?.let { throw it }
             return null
         }
-        try {
-            tx.run("set local idle_in_transaction_session_timeout = '${lease.inWholeMilliseconds}ms'")
-            tx.run("set local application_name = 'vojak $holder'")
-        } catch (failure: Throwable) {
-            tx.endAfterFailure(failure)
-            throw failure
-        }
-        return PostgresLease(tx)
+        val epoch =
+            try {
+                tx.run("set local idle_in_transaction_session_timeout = '${lease.inWholeMilliseconds}ms'")
+                tx.run("set local application_name = 'vojak $holder'")
+                // Its own statement on another connection, the lock already held (research D5).
+                epochs.next(key)
+            } catch (failure: Throwable) {
+                tx.endAfterFailure(failure)
+                throw failure
+            }
+        return PostgresLease(tx, epoch)
+    }
+
+    private companion object {
+        val IDENTIFIER = Regex("[a-z_][a-z0-9_]{0,40}")
     }
 }

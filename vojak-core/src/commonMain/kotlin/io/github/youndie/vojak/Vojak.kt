@@ -114,7 +114,8 @@ public class Vojak(
      *   keep what must survive in the database. It starts each time this process becomes leader,
      *   after [Election.leadership] reads [Leadership.Leader]; when leadership is lost it is cancelled
      *   and its cancellation has completed before [Election.leadership] leaves [Leadership.Leader].
-     *   Returning normally keeps the leadership and does not restart it; throwing steps down.
+     *   Returning normally keeps the leadership and does not restart it; throwing steps down. It
+     *   receives the leadership's epoch — write that one next to its effects, not a later reading.
      * @throws DuplicateElectionException when an election for [name] is already open on this [Vojak].
      */
     public suspend fun elect(
@@ -124,7 +125,7 @@ public class Vojak(
         timing: ElectionTiming = ElectionTiming(),
         onStoreFailure: (Throwable) -> Unit = {},
         onWorkFailure: (Throwable) -> Unit = {},
-        whileLeader: (suspend CoroutineScope.() -> Unit)? = null,
+        whileLeader: (suspend CoroutineScope.(epoch: Long) -> Unit)? = null,
     ): Election {
         require(CANDIDATE.matches(candidate)) { "a candidate must match [A-Za-z0-9._-]{1,63}, got '$candidate'" }
         val key = name.advisoryKey(namespace)

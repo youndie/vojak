@@ -20,6 +20,7 @@ import kotlin.concurrent.Volatile
  */
 internal class PostgresLease(
     private val tx: Transaction,
+    override val epoch: Long,
 ) : Lease {
     private val inUse = Mutex()
 

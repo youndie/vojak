@@ -23,6 +23,7 @@ import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertIs
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 import kotlin.time.Duration
@@ -106,7 +107,7 @@ class PostgresElectionTest {
     ): Election? {
         val started = TimeSource.Monotonic.markNow()
         while (started.elapsedNow() < within) {
-            of.firstOrNull { it.leadership.value == Leadership.Leader }?.let { return it }
+            of.firstOrNull { it.leadership.value is Leadership.Leader }?.let { return it }
             delay(50.milliseconds)
         }
         return null
@@ -125,11 +126,11 @@ class PostgresElectionTest {
             // Watched for several renewals: never both, and after it, still exactly one.
             val watch = TimeSource.Monotonic.markNow()
             while (watch.elapsedNow() < 3.seconds) {
-                val leaders = listOf(a, b).count { it.leadership.value == Leadership.Leader }
+                val leaders = listOf(a, b).count { it.leadership.value is Leadership.Leader }
                 assertTrue(leaders <= 1, "two leaders at once:${timelineText()}")
                 delay(20.milliseconds)
             }
-            assertEquals(1, listOf(a, b).count { it.leadership.value == Leadership.Leader }, timelineText())
+            assertEquals(1, listOf(a, b).count { it.leadership.value is Leadership.Leader }, timelineText())
         }
 
     @Test
@@ -178,7 +179,7 @@ class PostgresElectionTest {
             val killed = TimeSource.Monotonic.markNow()
             db.text("select pg_terminate_backend($pid)::text")
 
-            while (leader.leadership.value == Leadership.Leader &&
+            while (leader.leadership.value is Leadership.Leader &&
                 killed.elapsedNow() < 5.seconds
             ) {
                 delay(20.milliseconds)

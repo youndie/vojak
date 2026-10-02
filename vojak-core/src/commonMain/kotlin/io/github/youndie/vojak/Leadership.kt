@@ -8,8 +8,14 @@ public sealed interface Leadership {
     /**
      * This process holds the lease and has renewed it within `localLease`. It stops being true on
      * a timer, not when a renewal returns (research D6).
+     *
+     * @property epoch this leadership's number: strictly greater than every earlier leadership's of
+     *   the same name. Write it next to the leader's effects and refuse a write carrying a smaller
+     *   one — that is what makes a stale leader's late write harmless (research D9).
      */
-    public data object Leader : Leadership
+    public data class Leader(
+        val epoch: Long,
+    ) : Leadership
 
     /** [Election.close] has run. Final. */
     public data object Closed : Leadership
