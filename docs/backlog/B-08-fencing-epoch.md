@@ -1,7 +1,7 @@
 ---
 id: B-08
 title: "Each leadership gets the next epoch, so a store can reject a stale leader"
-status: open
+status: wip
 priority: P1
 size: S
 stage: stage-2-election
