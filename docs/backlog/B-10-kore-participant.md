@@ -36,7 +36,8 @@ waits for the lease. Either way the handover is later than it needs to be.
 - **Found in kore, not fixed here**: `kore-core`'s JVM variants are built for Java 25 and do not
   declare it (research §1.4). `vojak-kore` compiles for 25 and declares 25; the other modules stay
   at 21. Filed on 2026-10-02 as [youndie/kore#115](https://github.com/youndie/kore/issues/115)
-  (re-checked on 0.1.14 first: `kore-core` and `kore-ktor` alike). The draft it grew from:
+  (re-checked on 0.1.14 first: `kore-core` and `kore-ktor` alike). **Fixed in kore 0.1.15** (2026-10-03): it compiles
+  for 21 and says so, and `vojak-kore` dropped its override. The draft it grew from:
 
   > **kore-core's JVM variant needs Java 25 but its metadata does not say so.** `kore-core`
   > 0.1.12/0.1.14 is compiled to class file 69, and the `jvm*Elements-published` variants in the

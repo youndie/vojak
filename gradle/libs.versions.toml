@@ -8,8 +8,8 @@ kotlinx-coroutines = "1.11.0"
 sqlx4k = "1.13.1"
 # Not on Maven Central (research §1.4); resolved from the portfolio's reposilite through the
 # settings plugin's `io.github.youndie` filter.
-kore = "0.1.12"
-# The reference sample only (B-11). The version kore-ktor 0.1.12 itself depends on, through `api`:
+kore = "0.1.15"
+# The reference sample only (B-11). The version kore-ktor 0.1.15 itself depends on, through `api`:
 # a different Ktor here would compile and fail to link at run time.
 ktor = "3.6.0"
 

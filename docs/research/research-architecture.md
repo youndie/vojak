@@ -146,6 +146,13 @@ compiled for Java 25 — class file version 69 — and their `.module` metadata 
 compiles for 25 and declares 25 itself (`vojak-kore/build.gradle.kts`); the rest of vojak keeps the
 floor of 21.
 
+*Fixed in kore 0.1.15* (2026-10-03, [youndie/kore#117](https://github.com/youndie/kore/pull/117),
+kore's B-70): `kore-core` and `kore-ktor` are compiled for Java 21 and declare
+`org.gradle.jvm.version` 21 on both JVM variants. Read back from
+`io.github.youndie:kore-core:0.1.15!/kore-core-0.1.15.module` and the jar (class file 65 throughout).
+`vojak-kore` is back on the repository's floor of 21 and no longer overrides the toolchain or the
+attribute.
+
 **Consequence 9.** `vojak-kore` is a consumer participant — release the lock after in-flight
 work is cancelled and before the pool it needs is closed — and it is the whole of the kore
 integration. It also cannot be published to Maven Central while kore is not there: a POM on
