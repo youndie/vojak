@@ -1,0 +1,12 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "description": [
+    "The portfolio's configuration, extended by name rather than copied: the schedule, the labels and the Kotlin, kotlinx and sborka groups live in `github>youndie/sborka`. This replaces Renovate's onboarding `config:recommended` (vojak#1), which would not have proposed the sborka tag this repository's workflows are pinned to (vojak#3, youndie/sborka#123) — the preset's regex versioning is what orders a four-part `v0.5.0.<run>` tag.",
+    "`automerge-harness` is extended second, and the order matters: package rules concatenate in the order the presets are named and the last match wins, so its rule has to come after the base preset's 'a major of anything that ships gets a human'. Its precondition was checked in the workflow, not assumed: the `build` job in `.github/workflows/check.yaml` runs on `pull_request` and runs `make build` (Postgres, then `gradle build` with jvmTest and linuxX64Test), so a harness bump is built before it merges itself.",
+    "Nothing repository-specific is added."
+  ],
+  "extends": [
+    "github>youndie/sborka",
+    "github>youndie/sborka:automerge-harness"
+  ]
+}
