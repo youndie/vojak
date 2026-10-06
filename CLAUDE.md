@@ -5,7 +5,7 @@ Leader election and a distributed lock for Kotlin services on Postgres advisory 
 
 **The library is built: the lock, the election with `whileLeader`, the epoch, the wait-out of D12 and
 the kore participant.** `vojak-core`, `vojak-postgres` (epoch table `<prefix>_epoch`, created on first
-election), `vojak-kore` (Java 25 on the JVM — kore needs it, research §1.4). What is left is the
+election), `vojak-jdbc` (the same store over a JDBC `DataSource`, JVM only, research D13), `vojak-kore` (Java 25 on the JVM — kore needs it, research §1.4). What is left is the
 release. `samples/probe/` is the B-01 probe, `samples/two-replicas/` the fault suite,
 `samples/digest-sender/` the reference consumer and its stale-write stand (B-11). `backlog.md` and the build are what say how far things have got; a sentence here about
 the state of the project has no way to fail, so prefer them.
@@ -61,6 +61,9 @@ replica deletes anything else it did not send.
 
 - **The library depends on plain `io.github.smyrgeorge:sqlx4k` and takes a `Driver`.** Never a
   driver artefact: two sqlx4k drivers in one native binary do not link (research §1.4, D3).
+  `vojak-jdbc` is the same rule for the JVM's own interface: it takes a `DataSource` and depends on
+  no driver or pool; its SQL is `vojak-postgres`'s, statement for statement (D13, `JdbcElectionTest`
+  holds the two stores to one election). A change to the SQL of one is a change to both.
 - **Every SQL statement goes through one function.** On linuxX64 the released driver
   (`sqlx4k-postgres` 1.13.1) aborts the process on any I/O error; the fork's
   `1.13.1.1-yio` in reposilite does not (research §1.5, B-13). vojak cannot tell which one a
