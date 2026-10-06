@@ -499,6 +499,20 @@ release vojak makes may set it, because it is always made after the state left `
 ended session leaves it unset. A partition therefore also costs the wait — the server lease ran out,
 nobody released — which is the safe side and only `localLease` long.
 
+
+### D13. A JVM service that already has JDBC gets a JDBC store, not a second driver *(built in B-17)*
+
+D3 keeps vojak from choosing a driver for the caller. For a JVM service on JDBC — Exposed, jOOQ,
+Spring, all of which end in a `javax.sql.DataSource` — "bring an sqlx4k driver" is choosing one after
+all: an r2dbc driver and its pool beside the service's own, against the same database. So
+`vojak-jdbc` implements the port over a `DataSource` and depends on nothing but `vojak-core` and the
+JDK. It is the same rule as D3, applied to the JVM's own driver interface.
+
+It runs **the same statements as `vojak-postgres`**: the same keys, the same epoch table, the same
+clean-release mark, so replicas on either store are one election (tested, B-17). One difference is
+deliberate: the lease's connection carries a network timeout of twice the server lease, because on a
+pool of fixed size a renewal hung in a partition otherwise holds a connection for as long as the
+kernel keeps the socket.
 ---
 
 ## 3. Risks and open questions

@@ -31,6 +31,7 @@ include(":vojak-core")
 // The only module that knows SQL. Depends on the plain sqlx4k artefact and takes the caller's
 // Driver — never a driver artefact, because two in one native binary do not link (research D3).
 include(":vojak-postgres")
+include(":vojak-jdbc")
 
 // One kore shutdown participant. Published only where kore is (research D8).
 include(":vojak-kore")

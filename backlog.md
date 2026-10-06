@@ -45,7 +45,7 @@ layer, so re-prioritising an item must never move its file.
 | [B-12](docs/backlog/B-12-release-0-1-0.md) `[ ]` | Release 0.1.0: vojak-core and vojak-postgres on Maven Central, checked by an outside consumer | P2 | S | B-11 |
 | [B-14](docs/backlog/B-14-report-the-abort-upstream.md) `[?]` | Report the I/O-error abort to sqlx4k upstream, with the fork's patch, once it has run | P3 | S | B-13 |
 
-## Closed (14)
+## Closed (15)
 
 **Evidence**
 
@@ -72,6 +72,7 @@ layer, so re-prioritising an item must never move its file.
 
 - [B-10](docs/backlog/B-10-kore-participant.md) `[x]` - vojak-kore: hand leadership over during the drain instead of after the lease
 - [B-11](docs/backlog/B-11-reference-sample.md) `[x]` - Reference consumer: two replicas, one singleton, a store that rejects a stale epoch
+- [B-17](docs/backlog/B-17-jdbc-lock-store.md) `[x]` - A JDBC store: the same lock and election for a JVM service whose database is a DataSource
 
 <!-- END INDEX -->
 

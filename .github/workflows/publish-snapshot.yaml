@@ -60,5 +60,6 @@ jobs:
           coordinate: |
             io.github.youndie.vojak:vojak-core:${{ needs.publish.outputs.version }}
             io.github.youndie.vojak:vojak-postgres:${{ needs.publish.outputs.version }}
+            io.github.youndie.vojak:vojak-jdbc:${{ needs.publish.outputs.version }}
             io.github.youndie.vojak:vojak-kore:${{ needs.publish.outputs.version }}
           repository: https://reposilite.kotlin.website/snapshots

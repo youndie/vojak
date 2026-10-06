@@ -8,9 +8,11 @@ scheduler, a sweeper — runs twice. vojak keeps each of them on one replica at 
 Postgres advisory locks: no etcd, no ZooKeeper, no Kubernetes `Lease`, and it works on
 Kotlin/Native, where the JVM libraries that do this do not exist.
 
-**Status: design.** There is no code yet. What the library will promise, and why it is built the
-way it is, is in [docs/](docs/README.md) — start with the
-[research](docs/research/research-architecture.md); the plan is the [backlog](backlog.md).
+**Status: built, not yet released to Maven Central.** Four modules: `vojak-core` (names, waiting, the
+election), `vojak-postgres` (the store over an sqlx4k driver — Kotlin/Native and the JVM),
+`vojak-jdbc` (the store over a `javax.sql.DataSource`, for a JVM service that already has JDBC) and
+`vojak-kore` (the election as a kore participant). Why it is built the way it is: the
+[research](docs/research/research-architecture.md); what is left: the [backlog](backlog.md).
 
 ## License
 
