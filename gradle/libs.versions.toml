@@ -11,7 +11,7 @@ sqlx4k = "1.13.1"
 kore = "0.1.15"
 # The reference sample only (B-11). The version kore-ktor 0.1.15 itself depends on, through `api`:
 # a different Ktor here would compile and fail to link at run time.
-ktor = "3.6.0"
+ktor = "3.6.1"
 # vojak-jdbc's tests only: the driver and the pool a JDBC consumer brings. The library itself
 # depends on neither — it takes a `javax.sql.DataSource` (research D13).
 postgresql = "42.7.13"
