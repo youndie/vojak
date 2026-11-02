@@ -14,7 +14,7 @@ kore = "0.1.15"
 ktor = "3.6.1"
 # vojak-jdbc's tests only: the driver and the pool a JDBC consumer brings. The library itself
 # depends on neither — it takes a `javax.sql.DataSource` (research D13).
-postgresql = "42.7.13"
+postgresql = "42.7.14"
 hikari = "7.1.0"
 
 [libraries]
