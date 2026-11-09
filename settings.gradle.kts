@@ -21,7 +21,7 @@ plugins {
     id("org.gradle.toolchains.foojay-resolver-convention") version "1.0.0"
     // Repositories with content filters, the shared `wip` catalog (which is where the compiler
     // version comes from), and the shared publishing contract.
-    id("io.github.youndie.sborka.settings") version "0.4.0.93"
+    id("io.github.youndie.sborka.settings") version "0.5.0.135"
 }
 
 // The public API and everything that does not speak SQL: names and keys, the election and its
