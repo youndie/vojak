@@ -26,7 +26,7 @@ jobs:
   research:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # On the default branch this is an error. Research describes a plan, and a plan on `main`
       # starts lying the moment the code diverges from it — which is immediately, because the code
