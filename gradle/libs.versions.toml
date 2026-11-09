@@ -5,7 +5,7 @@ sborka = "0.5.0.135"
 kotlinx-coroutines = "1.11.0"
 # Pinned: it carries a Rust runtime, and on linuxX64 its 1.13.1 aborts the process on any I/O error
 # (research §1.5, B-13). A version change is a re-run of samples/probe, not a routine bump.
-sqlx4k = "1.13.1"
+sqlx4k = "1.18.0"
 # Not on Maven Central (research §1.4); resolved from the portfolio's reposilite through the
 # settings plugin's `io.github.youndie` filter.
 kore = "0.1.15"
